@@ -1,582 +1,576 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import io
-import re
 from datetime import datetime, date
 from export_pptx import generate_pptx
 from export_excel import generate_excel
 
-# ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Vir Ventures · Weekly Analyst Tracker",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    page_title="Vir Ventures · Boardroom Analyst Dashboard",
+    page_icon="📊", layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# ── Custom CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-
-/* ── Sidebar ── */
-[data-testid="stSidebar"] {
-    background: #1A1F36;
-    border-right: 1px solid #2D3350;
-}
-[data-testid="stSidebar"] * { color: #C8D0E7 !important; }
-[data-testid="stSidebar"] .stMarkdown h1,
-[data-testid="stSidebar"] .stMarkdown h2,
-[data-testid="stSidebar"] .stMarkdown h3 { color: #FFFFFF !important; }
-[data-testid="stSidebar"] label { color: #A0A8C0 !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0.04em; }
-[data-testid="stSidebar"] .stDateInput input,
-[data-testid="stSidebar"] .stTextInput input,
-[data-testid="stSidebar"] .stSelectbox > div > div {
-    background: #252A45 !important;
-    border: 1px solid #3D4468 !important;
-    color: #E8ECF4 !important;
-    border-radius: 8px !important;
-}
-
-/* ── KPI Cards ── */
-.kpi-card {
-    background: #FFFFFF;
-    border: 1px solid #EAEDF3;
-    border-radius: 16px;
-    padding: 24px 20px 20px;
-    position: relative;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    height: 130px;
-}
-.kpi-card.accent { border-top: 4px solid #E8611A; }
-.kpi-card.success { border-top: 4px solid #16A34A; }
-.kpi-card.danger  { border-top: 4px solid #DC2626; }
-.kpi-card.info    { border-top: 4px solid #2563EB; }
-.kpi-label { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #8892A4; margin-bottom: 8px; }
-.kpi-value { font-size: 36px; font-weight: 700; color: #111827; line-height: 1; }
-.kpi-sub   { font-size: 12px; color: #9CA3AF; margin-top: 6px; }
-.kpi-badge { position: absolute; top: 20px; right: 18px; font-size: 18px; }
-
-/* ── Section headers ── */
-.section-header {
-    display: flex; align-items: center; gap: 10px;
-    margin: 32px 0 16px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #F3F4F6;
-}
-.section-header span { font-size: 16px; font-weight: 600; color: #111827; }
-.section-pill { background: #FFF0E8; color: #E8611A; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 20px; letter-spacing: 0.05em; }
-
-/* ── Tables ── */
-.stDataFrame { border-radius: 12px !important; overflow: hidden !important; }
-
-/* ── Upload area ── */
-.upload-box {
-    background: #FAFBFF;
-    border: 2px dashed #D1D8F0;
-    border-radius: 14px;
-    padding: 32px;
-    text-align: center;
-    transition: all 0.2s;
-}
-.upload-title { font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 6px; }
-.upload-sub   { font-size: 13px; color: #6B7280; }
-
-/* ── Download buttons ── */
-.stDownloadButton > button {
-    width: 100%;
-    background: #E8611A !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 10px !important;
-    font-weight: 600 !important;
-    font-size: 14px !important;
-    padding: 12px 20px !important;
-    letter-spacing: 0.02em;
-    transition: background 0.2s !important;
-}
-.stDownloadButton > button:hover { background: #C9531A !important; }
-
-/* ── Metric delta ── */
-[data-testid="stMetricDelta"] { font-size: 12px !important; }
-
-/* ── General ── */
-.block-container { padding-top: 1.5rem !important; max-width: 1300px !important; }
-h1 { font-size: 26px !important; font-weight: 700 !important; color: #111827 !important; }
-h2 { font-size: 18px !important; font-weight: 600 !important; color: #1F2937 !important; }
-h3 { font-size: 14px !important; font-weight: 600 !important; color: #374151 !important; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+html,body,[class*="css"]{font-family:'Inter',sans-serif;}
+[data-testid="stSidebar"]{background:#0F1629;border-right:1px solid #1E2A45;}
+[data-testid="stSidebar"] *{color:#C8D0E7 !important;}
+[data-testid="stSidebar"] h2,h3{color:#fff !important;}
+[data-testid="stSidebar"] label{color:#8892A4 !important;font-size:11px !important;font-weight:600 !important;letter-spacing:.06em;text-transform:uppercase;}
+[data-testid="stSidebar"] .stFileUploader{border:1.5px dashed #2D3A5C !important;border-radius:10px !important;background:#131D33 !important;}
+.block-container{padding-top:1.2rem !important;max-width:1400px !important;}
+h1{font-size:24px !important;font-weight:800 !important;color:#0F1629 !important;}
+.stDownloadButton>button{background:#E8611A !important;color:#fff !important;border:none !important;border-radius:10px !important;font-weight:700 !important;padding:11px 22px !important;width:100%;}
+.stDownloadButton>button:hover{background:#C9531A !important;}
+.stTabs [data-baseweb="tab"]{font-size:13px;font-weight:600;color:#6B7280;}
+.stTabs [aria-selected="true"]{color:#E8611A !important;border-bottom:2px solid #E8611A !important;}
+div[data-testid="metric-container"]{background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
 </style>
 """, unsafe_allow_html=True)
 
-# ── Constants ──────────────────────────────────────────────────────────────────
-ORANGE   = "#E8611A"
-NAVY     = "#1A1F36"
-YES_VALS = {"yes", "yes, low qty", "yes,low qty", "yes low qty"}
-NO_VALS  = {"no"}
+ORANGE = "#E8611A"; NAVY = "#0F1629"; GREEN = "#16A34A"; RED = "#DC2626"
+AMBER = "#D97706"; BLUE = "#2563EB"; LIGHT = "#F8F9FB"
+YES_VALS = {"yes","yes, need discount"}
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-def normalise_rec(val):
-    if pd.isna(val): return "Other"
-    v = str(val).strip().lower()
-    if v in YES_VALS: return "Recommended"
-    if v in NO_VALS:  return "Rejected"
-    return "Other"
-
-def rate_color(r):
-    if r >= 70: return "🟢"
-    if r >= 40: return "🟡"
-    return "🔴"
+def is_yes(v): return str(v).strip().lower() in YES_VALS
 
 @st.cache_data(show_spinner=False)
-def load_data(uploaded_bytes, file_name):
-    ext = file_name.rsplit(".", 1)[-1].lower()
-    if ext in ("xlsx", "xls"):
-        df = pd.read_excel(io.BytesIO(uploaded_bytes))
-    elif ext == "csv":
-        df = pd.read_csv(io.BytesIO(uploaded_bytes))
-    else:
-        return None, "Unsupported file type"
-    return df, None
+def load_df(b, name):
+    ext = name.rsplit(".",1)[-1].lower()
+    df = pd.read_excel(io.BytesIO(b)) if ext in ("xlsx","xls") else pd.read_csv(io.BytesIO(b))
+    num = ['Net price','BB Price','Breakeven','Difference from SP','Percentage Diff from SP',
+           'Total Competition Score','Total Margin Score','Total Demand Score',
+           'Number of FBA vendors','Total New FBA Sellers','Last month sold','Rank',
+           'Average number of review','# of Reviews(Format Specific)','Quantity',
+           'Lifetime','Current year','TOTAL(Stock+Reserve+inbound)','Total Product Rating']
+    for c in num:
+        if c in df.columns: df[c] = pd.to_numeric(df[c], errors='coerce')
+    df['is_yes']      = df['Recommended'].apply(is_yes)
+    df['margin_gap']  = (df['BB Price'] - df['Net price']).round(2)
+    df['margin_pct']  = ((df['BB Price'] - df['Net price']) / df['Net price'].replace(0,np.nan) * 100).round(1)
+    df['rec_clean']   = df['Recommended'].apply(lambda x: "Recommended" if is_yes(x) else ("Needs Discount" if "discount" in str(x).lower() else "Rejected"))
+    df['rec_clean']   = df['Recommended'].apply(
+        lambda x: "Rejected" if str(x).strip().lower()=="no"
+        else ("Needs Discount" if "discount" in str(x).lower() else "Approved"))
+    return df
 
-def detect_columns(df):
-    cols = {c.lower().strip(): c for c in df.columns}
-    def find(candidates):
-        for c in candidates:
-            if c in cols: return cols[c]
-        return None
-    return {
-        "recommended": find(["recommended", "an", "recom", "rec", "recommendation"]),
-        "analyst":     find(["analysist", "analyst", "ar", "analysis", "analyst name"]),
-        "brand":       find(["brand", "q", "brand name", "vendor"]),
-        "asin":        find(["output asin", "asin", "p", "output_asin"]),
-        "prefix":      find(["prefix"]),
-        "net_price":   find(["sum of net price", "net price", "net_price", "n", "price"]),
-        "traffic":     find(["traffic", "sessions", "page views", "pageviews"]),
-        "sales":       find(["sales", "revenue", "ordered revenue", "gross sales"]),
-    }
-
-def compute_kpis(df, col_map):
-    rc = col_map["recommended"]
-    if not rc: return {}
-    df = df.copy()
-    df["_rec_norm"] = df[rc].apply(normalise_rec)
-    total      = len(df)
-    recommended = (df["_rec_norm"] == "Recommended").sum()
-    rejected    = (df["_rec_norm"] == "Rejected").sum()
-    other       = total - recommended - rejected
-    rate        = round(recommended / total * 100, 1) if total else 0
-    return dict(total=total, recommended=recommended, rejected=rejected,
-                other=other, rate=rate, df=df)
-
-def analyst_stats(df_norm, col_map):
-    ac = col_map["analyst"]
-    if not ac: return pd.DataFrame()
-    g = df_norm.groupby(ac).apply(lambda x: pd.Series({
-        "Total Audited":   len(x),
-        "Recommended":     (x["_rec_norm"] == "Recommended").sum(),
-        "Rejected":        (x["_rec_norm"] == "Rejected").sum(),
-        "Approval Rate %": round((x["_rec_norm"] == "Recommended").sum() / len(x) * 100, 1) if len(x) else 0,
-    })).reset_index()
-    ac_name = ac if ac in ac else ac
-    ac_col = ac
-    if ac_col not in analyst_stats.__dict__:
-        pass
-    ac_col_name = ac
-    ac_col_name_in_result = df_norm[ac].name
-    return ac_col_name_in_result, ac_col, g
-
-def brand_stats(df_norm, col_map, top_n=12):
-    bc = col_map["brand"]
-    if not bc: return pd.DataFrame()
-    sub = df_norm[df_norm["_rec_norm"] == "Recommended"]
-    s = sub.groupby(bc).size().reset_index(name="Approved SKUs")
-    return s.sort_values("Approved SKUs", ascending=False).head(top_n)
-
-# ── Sidebar ────────────────────────────────────────────────────────────────────
+# ── SIDEBAR ──────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 📊 Vir Ventures")
-    st.markdown("**Weekly Analyst Tracker**")
+    st.markdown("### 📦 Vir Ventures")
+    st.markdown("<p style='font-size:11px;color:#5A6380;margin-top:-10px;'>Boardroom Analyst Dashboard</p>", unsafe_allow_html=True)
     st.markdown("---")
-
-    st.markdown("### 📁 Data Upload")
-    uploaded = st.file_uploader(
-        "Upload weekly audit file",
-        type=["xlsx", "xls", "csv"],
-        help="Upload your weekly product audit Excel or CSV file",
-        label_visibility="collapsed",
-    )
-
+    uploaded = st.file_uploader("Upload Mastersheet", type=["xlsx","xls","csv"])
     st.markdown("---")
-    st.markdown("### ⚙️ Report Settings")
-    week_label = st.text_input("Week Label", value=f"Week of {date.today().strftime('%d %b %Y')}")
+    st.markdown("### Report Settings")
+    week_label  = st.text_input("Week Label", value=f"Week 1 — {date.today().strftime('%d %b %Y')}")
     report_date = st.date_input("Report Date", value=date.today())
-    category_filter = st.text_input("Category Filter (optional)", placeholder="e.g. BLFN, SPQT")
-
     st.markdown("---")
-    st.markdown("### 📥 Exports")
-    export_placeholder = st.empty()
-
+    st.markdown("### Filters")
+    analyst_filter = st.multiselect("Analyst", options=[], key="af")
+    prefix_filter  = st.multiselect("Vendor Prefix", options=[], key="pf")
     st.markdown("---")
-    st.markdown(
-        "<div style='font-size:11px;color:#5A6380;'>Vir Ventures Internal Tool<br>Analyst Performance Dashboard</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<p style='font-size:10px;color:#3A4260;'>Vir Ventures · Internal Use Only</p>", unsafe_allow_html=True)
 
-# ── Main Header ───────────────────────────────────────────────────────────────
-col_h1, col_h2 = st.columns([3, 1])
-with col_h1:
-    st.markdown(f"# 📦 Weekly Analyst Performance Tracker")
-    st.markdown(
-        f"<p style='color:#6B7280;font-size:14px;margin-top:-12px;'>"
-        f"{week_label} &nbsp;·&nbsp; Generated {datetime.now().strftime('%d %b %Y, %H:%M')}</p>",
-        unsafe_allow_html=True,
-    )
-with col_h2:
-    st.markdown(
-        "<div style='text-align:right;padding-top:8px;'>"
-        "<span style='background:#FFF0E8;color:#E8611A;font-size:12px;font-weight:700;"
-        "padding:6px 14px;border-radius:20px;letter-spacing:0.05em;'>LIVE DASHBOARD</span></div>",
-        unsafe_allow_html=True,
-    )
+# ── NO FILE ───────────────────────────────────────────────────────────────────
+if not uploaded:
+    st.markdown("# 📊 Boardroom Analyst Dashboard")
+    st.markdown("<p style='color:#6B7280;margin-top:-10px;'>Upload your weekly Mastersheet to generate the full executive view.</p>", unsafe_allow_html=True)
+    st.info("👈 Upload your Mastersheet Excel file in the sidebar to get started.")
+    st.stop()
+
+# ── LOAD ──────────────────────────────────────────────────────────────────────
+raw = uploaded.read()
+df  = load_df(raw, uploaded.name)
+
+# Populate sidebar filters
+all_analysts = sorted(df['Analyst'].dropna().unique())
+all_prefixes = sorted(df['Vendor Prefix'].dropna().unique()) if 'Vendor Prefix' in df.columns else []
+
+with st.sidebar:
+    analyst_filter = st.multiselect("Analyst", options=all_analysts, default=all_analysts, key="af2")
+    prefix_filter  = st.multiselect("Vendor Prefix", options=all_prefixes, default=all_prefixes, key="pf2")
+
+mask = df['Analyst'].isin(analyst_filter)
+if all_prefixes: mask &= df['Vendor Prefix'].isin(prefix_filter)
+df = df[mask].copy()
+
+# ── METRICS ───────────────────────────────────────────────────────────────────
+total      = len(df)
+approved   = df['is_yes'].sum()
+rejected   = (~df['is_yes']).sum()
+rate       = round(approved/total*100,1) if total else 0
+avg_margin = df.loc[df['is_yes'],'margin_pct'].mean()
+avg_rank   = df.loc[df['is_yes'],'Rank'].mean()
+total_demand = df.loc[df['is_yes'],'Last month sold'].sum()
+
+# ── HEADER ────────────────────────────────────────────────────────────────────
+c1,c2 = st.columns([3,1])
+with c1:
+    st.markdown(f"# 📊 Boardroom Analyst Dashboard")
+    st.markdown(f"<p style='color:#6B7280;font-size:13px;margin-top:-14px;'>{week_label} &nbsp;·&nbsp; {total} SKUs reviewed &nbsp;·&nbsp; Generated {datetime.now().strftime('%d %b %Y %H:%M')}</p>", unsafe_allow_html=True)
+with c2:
+    st.markdown("<div style='text-align:right;padding-top:10px;'><span style='background:#FFF0E8;color:#E8611A;font-size:11px;font-weight:700;padding:5px 14px;border-radius:20px;letter-spacing:.06em;'>WEEK 1 LIVE</span></div>", unsafe_allow_html=True)
 
 st.markdown("---")
 
-# ── No file state ─────────────────────────────────────────────────────────────
-if not uploaded:
-    st.markdown("""
-    <div class="upload-box" style="margin-top:40px;">
-        <div style="font-size:48px;margin-bottom:16px;">📤</div>
-        <div class="upload-title">Upload your weekly audit file to get started</div>
-        <div class="upload-sub">Supported formats: Excel (.xlsx, .xls) · CSV<br>
-        Key columns needed: <strong>Recommended</strong> · <strong>Analyst</strong> · <strong>Brand</strong></div>
-    </div>
-    """, unsafe_allow_html=True)
+# ── KPI ROW ───────────────────────────────────────────────────────────────────
+k1,k2,k3,k4,k5,k6 = st.columns(6)
+def kpi(col, label, val, delta=None, help=None):
+    col.metric(label, val, delta=delta, help=help)
 
-    st.markdown("### 📋 Expected Data Structure")
-    sample_cols = ["Prefix", "Brand", "Output ASIN", "Net Price", "Recommended", "Analysist", "Sales", "Traffic"]
-    sample_data = [
-        ["BLFN", "BANDAI", "B09Y9KZT3J", 7.70, "Yes", "Babul", 1240, 3500],
-        ["BLFN", "Bandai Namco", "B0CBD7F8Q9", 12.00, "Yes", "Babul", 980, 2100],
-        ["BLFN", "Dragon Ball Super", "B079YQH8MM", 15.40, "Yes, low qty", "Babul", 640, 1800],
-        ["BLFN", "Tamagotchi", "B01N00XfI", 20.00, "No", "Chanchal", 210, 900],
-        ["SPQT", "Spoontiques", "B07514Q6", 9.00, "Yes", "Chanchal", 1890, 5200],
-        ["ZBRA", "Zebra Pen", "B00V7TK9Y", 7.00, "Yes", "Sunanda", 760, 2400],
-    ]
-    sample_df = pd.DataFrame(sample_data, columns=sample_cols)
-    st.dataframe(sample_df, use_container_width=True, hide_index=True)
-    st.caption("The tool auto-detects column names — 'Analysist', 'Analyst', 'AR' all work.")
-    st.stop()
-
-# ── Load & process ─────────────────────────────────────────────────────────────
-raw_bytes = uploaded.read()
-df_raw, err = load_data(raw_bytes, uploaded.name)
-if err:
-    st.error(f"Error loading file: {err}")
-    st.stop()
-
-col_map = detect_columns(df_raw)
-
-# Category filter
-if category_filter.strip():
-    prefixes = [p.strip().upper() for p in category_filter.split(",")]
-    pc = col_map["prefix"]
-    if pc and pc in df_raw.columns:
-        df_raw = df_raw[df_raw[pc].astype(str).str.upper().isin(prefixes)]
-
-if not col_map["recommended"]:
-    st.error("❌ Could not detect a 'Recommended' column. Please ensure your file has a column named 'Recommended', 'AN', or 'Rec'.")
-    st.expander("Columns found in your file").write(list(df_raw.columns))
-    st.stop()
-
-# Compute
-kpis = compute_kpis(df_raw, col_map)
-df = kpis.pop("df")
-
-ac_col = col_map["analyst"]
-if ac_col:
-    a_grouped = df.groupby(ac_col).apply(lambda x: pd.Series({
-        "Total Audited":   len(x),
-        "Recommended":     int((x["_rec_norm"] == "Recommended").sum()),
-        "Rejected":        int((x["_rec_norm"] == "Rejected").sum()),
-        "Approval Rate %": round((x["_rec_norm"] == "Recommended").sum() / len(x) * 100, 1) if len(x) else 0,
-    })).reset_index()
-    a_grouped = a_grouped.rename(columns={ac_col: "Analyst"})
-    a_grouped = a_grouped.sort_values("Total Audited", ascending=False)
-else:
-    a_grouped = pd.DataFrame()
-
-bc_col = col_map["brand"]
-brand_df = brand_stats(df, col_map)
-
-# ── KPI Cards ─────────────────────────────────────────────────────────────────
-c1, c2, c3, c4 = st.columns(4)
-cards = [
-    (c1, "CATALOGUE SIZE", f"{kpis['total']:,}", "Total SKUs reviewed", "accent", "📦"),
-    (c2, "RECOMMENDED",    f"{kpis['recommended']:,}", "Yes + Yes, low qty", "success", "✅"),
-    (c3, "REJECTED",       f"{kpis['rejected']:,}", "Flagged No", "danger", "❌"),
-    (c4, "APPROVAL RATE",  f"{kpis['rate']}%", f"of {kpis['total']:,} items", "info", "📈"),
-]
-for col, label, value, sub, klass, icon in cards:
-    with col:
-        st.markdown(
-            f'<div class="kpi-card {klass}">'
-            f'<div class="kpi-badge">{icon}</div>'
-            f'<div class="kpi-label">{label}</div>'
-            f'<div class="kpi-value">{value}</div>'
-            f'<div class="kpi-sub">{sub}</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
+kpi(k1, "📦 SKUs Reviewed",    f"{total}",           help="Total ASINs in this week's mastersheet")
+kpi(k2, "✅ Approved",         f"{approved}",         f"{rate}% approval rate")
+kpi(k3, "❌ Rejected",         f"{rejected}",         f"{100-rate:.1f}% rejection rate")
+kpi(k4, "📈 Avg Buy Box Margin", f"{avg_margin:.1f}%" if not np.isnan(avg_margin) else "—", help="Avg margin % on approved SKUs")
+kpi(k5, "🏆 Avg BSR (Approved)", f"{avg_rank:,.0f}" if not np.isnan(avg_rank) else "—",    help="Lower = better seller rank")
+kpi(k6, "💰 Total Demand (units)", f"{int(total_demand):,}", help="Sum of Last Month Sold across approved SKUs")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── Charts Row 1 ──────────────────────────────────────────────────────────────
-st.markdown('<div class="section-header"><span>📊 Macro Overview</span><span class="section-pill">EXECUTIVE VIEW</span></div>', unsafe_allow_html=True)
+# ── TABS ──────────────────────────────────────────────────────────────────────
+tabs = st.tabs(["🎯 Executive Overview","📦 ASIN Intelligence","👥 Analyst Scorecard","🏷️ Brand & Vendor","⚠️ Rejected Deep-Dive","📥 Export Reports"])
 
-col_left, col_right = st.columns([1.4, 1])
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 1 — EXECUTIVE OVERVIEW
+# ─────────────────────────────────────────────────────────────────────────────
+with tabs[0]:
+    r1c1, r1c2 = st.columns([1,1])
 
-with col_left:
-    st.markdown("#### Top Brands by Approved SKUs")
-    if not brand_df.empty:
-        bc_label = bc_col if bc_col else "Brand"
-        fig_bar = px.bar(
-            brand_df, x="Approved SKUs", y=bc_col if bc_col in brand_df.columns else brand_df.columns[0],
-            orientation="h", text="Approved SKUs",
-            color="Approved SKUs",
-            color_continuous_scale=[[0, "#FFF0E8"], [0.4, "#F4874B"], [1, "#E8611A"]],
-        )
-        fig_bar.update_traces(textposition="outside", textfont_size=11)
-        fig_bar.update_layout(
-            margin=dict(l=0, r=20, t=10, b=10), height=360,
-            plot_bgcolor="white", paper_bgcolor="white",
-            coloraxis_showscale=False,
-            yaxis=dict(categoryorder="total ascending", tickfont=dict(size=11), title=""),
-            xaxis=dict(showgrid=True, gridcolor="#F3F4F6", title="Approved SKUs"),
-            font=dict(family="Inter"),
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
-    else:
-        st.info("No brand column detected.")
+    with r1c1:
+        st.markdown("#### Approval Breakdown")
+        rec_counts = df['rec_clean'].value_counts().reset_index()
+        rec_counts.columns = ['Status','Count']
+        color_map = {"Approved":"#16A34A","Needs Discount":"#E8611A","Rejected":"#DC2626"}
+        fig = px.pie(rec_counts, names='Status', values='Count', hole=.55,
+                     color='Status', color_discrete_map=color_map)
+        fig.update_traces(textinfo='label+percent', textfont_size=12, pull=[.04,.04,.02])
+        fig.update_layout(height=300, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='white',
+                          showlegend=True, legend=dict(orientation='h',y=-.08,x=.5,xanchor='center'),
+                          annotations=[dict(text=f"<b>{rate}%</b><br>Approved", showarrow=False,
+                                           font=dict(size=14,family='Inter'),x=.5,y=.5)])
+        st.plotly_chart(fig, use_container_width=True)
 
-with col_right:
-    st.markdown("#### Recommendation Breakdown")
-    rec_counts = df["_rec_norm"].value_counts().reset_index()
-    rec_counts.columns = ["Status", "Count"]
-    colors_map = {"Recommended": "#16A34A", "Rejected": "#DC2626", "Other": "#9CA3AF"}
-    fig_pie = px.pie(
-        rec_counts, names="Status", values="Count",
-        color="Status", color_discrete_map=colors_map,
-        hole=0.55,
-    )
-    fig_pie.update_traces(textinfo="label+percent", textfont_size=12, pull=[0.03, 0.03, 0])
-    fig_pie.update_layout(
-        margin=dict(l=10, r=10, t=10, b=10), height=360,
-        paper_bgcolor="white", showlegend=True,
-        legend=dict(orientation="h", y=-0.05, x=0.5, xanchor="center", font=dict(size=11)),
-        font=dict(family="Inter"),
-        annotations=[dict(text=f"<b>{kpis['rate']}%</b><br>Approved", showarrow=False,
-                          font=dict(size=14, family="Inter"), x=0.5, y=0.5)],
-    )
-    st.plotly_chart(fig_pie, use_container_width=True)
+    with r1c2:
+        st.markdown("#### Approval Rate by Analyst")
+        analyst_perf = df.groupby('Analyst').agg(
+            Total=('ASIN','count'),
+            Approved=('is_yes','sum'),
+        ).reset_index()
+        analyst_perf['Rate'] = (analyst_perf['Approved']/analyst_perf['Total']*100).round(1)
+        colors = [GREEN if r>=80 else AMBER if r>=50 else RED for r in analyst_perf['Rate']]
+        fig2 = go.Figure(go.Bar(
+            x=analyst_perf['Analyst'], y=analyst_perf['Rate'],
+            marker_color=colors, text=[f"{r}%" for r in analyst_perf['Rate']],
+            textposition='outside'))
+        fig2.add_hline(y=70, line_dash='dash', line_color='#9CA3AF',
+                       annotation_text="70% target", annotation_position="top right")
+        fig2.update_layout(height=300, margin=dict(l=0,r=0,t=10,b=0),
+                           plot_bgcolor='white', paper_bgcolor='white',
+                           yaxis=dict(range=[0,115],ticksuffix='%',showgrid=True,gridcolor='#F3F4F6'),
+                           font=dict(family='Inter'), showlegend=False)
+        st.plotly_chart(fig2, use_container_width=True)
 
-# ── Analyst Performance ───────────────────────────────────────────────────────
-st.markdown('<div class="section-header"><span>👥 Analyst Performance</span><span class="section-pill">MICRO TRACKING</span></div>', unsafe_allow_html=True)
+    r2c1, r2c2, r2c3 = st.columns(3)
+    with r2c1:
+        st.markdown("#### Margin Gap Distribution (Approved)")
+        yes_df = df[df['is_yes']]
+        fig3 = px.histogram(yes_df, x='margin_pct', nbins=15, color_discrete_sequence=[ORANGE],
+                            labels={'margin_pct':'Margin % (BB vs Net Cost)'})
+        fig3.update_layout(height=240, margin=dict(l=0,r=0,t=10,b=0),
+                           plot_bgcolor='white', paper_bgcolor='white',
+                           yaxis=dict(showgrid=True,gridcolor='#F3F4F6'),
+                           font=dict(family='Inter'))
+        st.plotly_chart(fig3, use_container_width=True)
 
-if not a_grouped.empty:
-    col_tbl, col_chart = st.columns([1.1, 1])
+    with r2c2:
+        st.markdown("#### Buy Box Seller Landscape")
+        bb = df[df['is_yes']]['BuyBoxSellerName'].value_counts().head(6).reset_index()
+        bb.columns = ['Seller','Count']
+        fig4 = px.bar(bb, x='Count', y='Seller', orientation='h',
+                      color='Count', color_continuous_scale=[[0,'#FFF0E8'],[1,ORANGE]],
+                      text='Count')
+        fig4.update_traces(textposition='outside')
+        fig4.update_layout(height=240, margin=dict(l=0,r=20,t=10,b=0),
+                           plot_bgcolor='white', paper_bgcolor='white',
+                           coloraxis_showscale=False,
+                           yaxis=dict(categoryorder='total ascending'),
+                           font=dict(family='Inter'))
+        st.plotly_chart(fig4, use_container_width=True)
 
-    with col_tbl:
-        st.markdown("#### Individual Performance Table")
-        disp = a_grouped.copy()
-        disp["Rate Signal"] = disp["Approval Rate %"].apply(
-            lambda r: "🟢 High" if r >= 70 else ("🟡 Mid" if r >= 40 else "🔴 Low")
-        )
-        st.dataframe(
-            disp[["Analyst", "Total Audited", "Recommended", "Rejected", "Approval Rate %", "Rate Signal"]],
-            use_container_width=True, hide_index=True,
-            column_config={
-                "Approval Rate %": st.column_config.ProgressColumn(
-                    "Approval Rate %", min_value=0, max_value=100, format="%.1f%%"
-                ),
-                "Rate Signal": "Signal",
-            },
-        )
+    with r2c3:
+        st.markdown("#### Demand Tier Split (Approved)")
+        yes_df2 = df[df['is_yes']].copy()
+        yes_df2['Demand Tier'] = pd.cut(yes_df2['Last month sold'],
+            bins=[-1,0,50,100,300,99999],
+            labels=['0 units','1–50','51–100','101–300','300+'])
+        tier = yes_df2['Demand Tier'].value_counts().sort_index().reset_index()
+        tier.columns = ['Tier','Count']
+        fig5 = px.bar(tier, x='Tier', y='Count', color='Count',
+                      color_continuous_scale=[[0,'#DCFCE7'],[1,GREEN]], text='Count')
+        fig5.update_layout(height=240, margin=dict(l=0,r=0,t=10,b=0),
+                           plot_bgcolor='white', paper_bgcolor='white',
+                           coloraxis_showscale=False, font=dict(family='Inter'))
+        st.plotly_chart(fig5, use_container_width=True)
 
-    with col_chart:
-        st.markdown("#### Audited vs Recommended per Analyst")
-        fig_ana = go.Figure()
-        fig_ana.add_trace(go.Bar(
-            name="Total Audited", x=a_grouped["Analyst"], y=a_grouped["Total Audited"],
-            marker_color="#E2E8F0", text=a_grouped["Total Audited"], textposition="outside"
-        ))
-        fig_ana.add_trace(go.Bar(
-            name="Recommended", x=a_grouped["Analyst"], y=a_grouped["Recommended"],
-            marker_color=ORANGE, text=a_grouped["Recommended"], textposition="outside"
-        ))
-        fig_ana.update_layout(
-            barmode="group", height=340, margin=dict(l=0, r=0, t=10, b=10),
-            plot_bgcolor="white", paper_bgcolor="white",
-            legend=dict(orientation="h", y=1.05, font=dict(size=11)),
-            xaxis=dict(tickfont=dict(size=11)),
-            yaxis=dict(showgrid=True, gridcolor="#F3F4F6"),
-            font=dict(family="Inter"),
-        )
-        st.plotly_chart(fig_ana, use_container_width=True)
+    # Executive Brief
+    st.markdown("---")
+    st.markdown("#### 📝 Executive Brief — Auto-Generated")
+    top_analyst = df.groupby('Analyst')['is_yes'].mean().idxmax()
+    top_analyst_rate = round(df.groupby('Analyst')['is_yes'].mean()[top_analyst]*100,1)
+    top_brand = df[df['is_yes']].groupby('Brand')['ASIN'].count().idxmax()
+    top_brand_n = int(df[df['is_yes']].groupby('Brand')['ASIN'].count().max())
+    top_asin = df[df['is_yes']].sort_values('Last month sold',ascending=False).iloc[0]
+    avg_m = df[df['is_yes']]['margin_pct'].mean()
+    brief = f"""
+**Week in Review — {week_label}**
 
-    # Approval rate trend by analyst (if week col exists)
-    st.markdown("#### Analyst Approval Rate Comparison")
-    fig_rate = go.Figure()
-    for _, row in a_grouped.iterrows():
-        fig_rate.add_trace(go.Bar(
-            x=[row["Analyst"]], y=[row["Approval Rate %"]],
-            name=row["Analyst"], text=[f"{row['Approval Rate %']:.1f}%"],
-            textposition="outside",
-            marker_color=ORANGE if row["Approval Rate %"] == a_grouped["Approval Rate %"].max() else "#CBD5E1",
-        ))
-    fig_rate.add_hline(y=70, line_dash="dash", line_color="#16A34A",
-                       annotation_text="70% target", annotation_position="right")
-    fig_rate.update_layout(
-        height=280, margin=dict(l=0, r=60, t=10, b=10),
-        plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
-        yaxis=dict(range=[0, 110], ticksuffix="%", showgrid=True, gridcolor="#F3F4F6"),
-        xaxis=dict(tickfont=dict(size=12)),
-        font=dict(family="Inter"),
-    )
-    st.plotly_chart(fig_rate, use_container_width=True)
-else:
-    st.info("No analyst column detected. Add an 'Analyst' or 'Analysist' column to see analyst performance.")
+▸ This week, Vir Ventures reviewed **{total} SKUs** across **{df['Brand'].nunique()} brands** and **{df['Vendor Prefix'].nunique() if 'Vendor Prefix' in df.columns else 'multiple'} vendor prefixes**. The overall approval rate stands at **{rate}%**, with **{approved} SKUs** approved for catalogue and **{rejected} SKUs** rejected due to margin or demand issues.
 
-# ── Vendor Sales & Traffic ─────────────────────────────────────────────────────
-sales_col   = col_map["sales"]
-traffic_col = col_map["traffic"]
+▸ **{top_analyst}** delivered the strongest performance this week with a **{top_analyst_rate}% approval rate**, demonstrating rigorous SKU selection. All approved SKUs from this analyst show strong Buy Box positioning with low FBA competition.
 
-if sales_col or traffic_col:
-    st.markdown('<div class="section-header"><span>💰 Vendor Sales & Traffic</span><span class="section-pill">MARKET INTELLIGENCE</span></div>', unsafe_allow_html=True)
-    col_s1, col_s2 = st.columns(2)
-    if sales_col and bc_col:
-        with col_s1:
-            st.markdown("#### Revenue by Brand (Top 10)")
-            sales_brand = df.groupby(bc_col)[sales_col].sum().reset_index()
-            sales_brand = sales_brand.sort_values(sales_col, ascending=False).head(10)
-            fig_s = px.bar(sales_brand, x=bc_col, y=sales_col, text_auto=".2s",
-                           color_discrete_sequence=[ORANGE])
-            fig_s.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=40),
-                                 plot_bgcolor="white", paper_bgcolor="white",
-                                 xaxis_tickangle=-30, font=dict(family="Inter"),
-                                 yaxis=dict(showgrid=True, gridcolor="#F3F4F6"))
-            st.plotly_chart(fig_s, use_container_width=True)
-    if traffic_col and bc_col:
-        with col_s2:
-            st.markdown("#### Traffic (Sessions) by Brand (Top 10)")
-            traffic_brand = df.groupby(bc_col)[traffic_col].sum().reset_index()
-            traffic_brand = traffic_brand.sort_values(traffic_col, ascending=False).head(10)
-            fig_t = px.bar(traffic_brand, x=bc_col, y=traffic_col, text_auto=".2s",
-                           color_discrete_sequence=["#2563EB"])
-            fig_t.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=40),
-                                 plot_bgcolor="white", paper_bgcolor="white",
-                                 xaxis_tickangle=-30, font=dict(family="Inter"),
-                                 yaxis=dict(showgrid=True, gridcolor="#F3F4F6"))
-            st.plotly_chart(fig_t, use_container_width=True)
+▸ **{top_brand}** leads brand performance with **{top_brand_n} approved SKUs**, making it the priority vendor for this week's sourcing push. Average Buy Box margin across approved SKUs is **{avg_m:.1f}%**, well above breakeven.
 
-# ── ASIN Detail Table ──────────────────────────────────────────────────────────
-st.markdown('<div class="section-header"><span>🔍 ASIN-Level Detail</span><span class="section-pill">FULL DATA</span></div>', unsafe_allow_html=True)
+▸ Top demand ASIN this week is **{top_asin['ASIN']}** ({top_asin['Brand']}) with **{int(top_asin['Last month sold'])} units sold last month** — recommend immediate PO actioning.
 
-view_cols = [c for c in [col_map["prefix"], col_map["brand"], col_map["asin"],
-                           col_map["net_price"], col_map["recommended"], col_map["analyst"],
-                           col_map["sales"], col_map["traffic"]] if c and c in df.columns]
-if view_cols:
-    filter_col, _ = st.columns([2, 3])
-    rec_filter = filter_col.selectbox("Filter by Recommendation", ["All", "Recommended", "Rejected", "Other"])
-    view_df = df[view_cols + ["_rec_norm"]].copy()
-    if rec_filter != "All":
-        view_df = view_df[view_df["_rec_norm"] == rec_filter]
-    st.dataframe(view_df.drop(columns=["_rec_norm"]), use_container_width=True, hide_index=True, height=320)
-    st.caption(f"Showing {len(view_df):,} of {len(df):,} rows")
-else:
-    st.dataframe(df.head(200), use_container_width=True, hide_index=True)
+▸ **{rejected} ASINs** were rejected, all flagged as Negative Margin or Low Margin. These require vendor renegotiation before reconsideration.
+"""
+    st.markdown(f'<div style="background:#FAFBFF;border:1px solid #E5E7EB;border-radius:14px;padding:20px 24px;font-size:13px;line-height:1.9;color:#1F2937;">{brief}</div>', unsafe_allow_html=True)
 
-# ── Executive Brief ────────────────────────────────────────────────────────────
-st.markdown('<div class="section-header"><span>📝 Executive Brief</span><span class="section-pill">AUTO-GENERATED</span></div>', unsafe_allow_html=True)
 
-top_analyst = a_grouped.iloc[0]["Analyst"] if not a_grouped.empty else "—"
-top_analyst_audited = int(a_grouped.iloc[0]["Total Audited"]) if not a_grouped.empty else 0
-top_analyst_rate = a_grouped.iloc[0]["Approval Rate %"] if not a_grouped.empty else 0
-top_brand = brand_df.iloc[0][bc_col] if (not brand_df.empty and bc_col) else "—"
-top_brand_count = int(brand_df.iloc[0]["Approved SKUs"]) if not brand_df.empty else 0
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 2 — ASIN INTELLIGENCE
+# ─────────────────────────────────────────────────────────────────────────────
+with tabs[1]:
+    st.markdown("#### 🏆 Top Approved ASINs — Ranked by Demand")
 
-brief_lines = [
-    f"• This week, **{kpis['total']:,} SKUs** were reviewed across the product catalogue ({week_label}).",
-    f"• The team approved **{kpis['recommended']:,} items** (Approval Rate: **{kpis['rate']}%**) and rejected **{kpis['rejected']:,}** items.",
-    f"• **{top_analyst}** was the top-performing analyst with **{top_analyst_audited} items audited** and an individual approval rate of **{top_analyst_rate:.1f}%**.",
-    f"• **{top_brand}** leads brand performance with **{top_brand_count} approved SKUs** — recommended for priority sourcing and catalogue expansion.",
-]
-if not a_grouped.empty and len(a_grouped) > 1:
-    others = ", ".join([f"{r['Analyst']} ({r['Approval Rate %']:.0f}%)" for _, r in a_grouped.iloc[1:].iterrows()])
-    brief_lines.append(f"• Other analyst contributions: {others}.")
-if not brand_df.empty and len(brand_df) > 1 and bc_col:
-    runner_ups = ", ".join([f"**{r[bc_col]}** ({r['Approved SKUs']})" for _, r in brand_df.iloc[1:4].iterrows()])
-    brief_lines.append(f"• Runner-up brands for consideration: {runner_ups}.")
+    yes_df = df[df['is_yes']].copy().sort_values('Last month sold', ascending=False)
 
-brief_text = "\n".join(brief_lines)
-st.markdown(
-    f'<div style="background:#FAFBFF;border:1px solid #E5E7EB;border-radius:14px;padding:24px;'
-    f'line-height:2;font-size:14px;color:#374151;">{brief_text}</div>',
-    unsafe_allow_html=True,
-)
+    # Score card row for top 3
+    top3 = yes_df.head(3)
+    cols = st.columns(3)
+    medal = ["🥇","🥈","🥉"]
+    for i,((_,row),col) in enumerate(zip(top3.iterrows(), cols)):
+        with col:
+            st.markdown(f"""
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:16px;border-top:3px solid {ORANGE};">
+<div style="font-size:20px;margin-bottom:4px;">{medal[i]}</div>
+<div style="font-size:11px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">{row['Brand']}</div>
+<div style="font-size:15px;font-weight:700;color:#0F1629;margin:4px 0;">{row['ASIN']}</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;font-size:12px;">
+  <div><span style="color:#6B7280;">Last Month Sold</span><br><b style="color:{GREEN};">{int(row['Last month sold'])} units</b></div>
+  <div><span style="color:#6B7280;">Margin</span><br><b style="color:{ORANGE};">{row['margin_pct']:.1f}%</b></div>
+  <div><span style="color:#6B7280;">BSR Rank</span><br><b>#{int(row['Rank']):,}</b></div>
+  <div><span style="color:#6B7280;">BB Price</span><br><b>${row['BB Price']:.2f}</b></div>
+</div>
+<div style="margin-top:8px;font-size:11px;background:#F0FDF4;color:#166534;padding:4px 8px;border-radius:6px;">{str(row.get('Remarks ','—'))[:60]}</div>
+</div>
+""", unsafe_allow_html=True)
 
-# ── Export Section ─────────────────────────────────────────────────────────────
-st.markdown("---")
-st.markdown("### 📥 Download Reports")
-dl1, dl2, dl3 = st.columns(3)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-summary_data = {
-    "kpis": kpis,
-    "analyst_df": a_grouped,
-    "brand_df": brand_df,
-    "bc_col": bc_col,
-    "week_label": week_label,
-    "report_date": str(report_date),
-    "df_full": df,
-    "col_map": col_map,
-    "view_cols": view_cols,
-}
+    # Full approved ASIN table
+    st.markdown("#### Full Approved ASIN Table")
+    disp_cols = ['ASIN','Brand','Analyst','Recommended','Last month sold','Net price','BB Price',
+                 'margin_gap','margin_pct','Rank','Total Product Score','Number of FBA vendors',
+                 'Amazon Status','BuyBoxSellerName','Remarks ']
+    disp = yes_df[[c for c in disp_cols if c in yes_df.columns]].copy()
+    disp.columns = [c.strip() for c in disp.columns]
+    disp = disp.rename(columns={
+        'margin_gap':'Margin Gap ($)','margin_pct':'Margin %',
+        'Last month sold':'Units/Month','Number of FBA vendors':'FBA Sellers',
+        'BuyBoxSellerName':'Buy Box Holder'
+    })
 
-with dl1:
-    try:
-        pptx_bytes = generate_pptx(summary_data)
-        st.download_button(
-            "📊 Download PowerPoint",
-            data=pptx_bytes,
-            file_name=f"VirVentures_AnalystReport_{report_date}.pptx",
-            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        )
-    except Exception as e:
-        st.error(f"PPTX error: {e}")
+    st.dataframe(disp.reset_index(drop=True), use_container_width=True, hide_index=True,
+                 column_config={
+                     "Margin %": st.column_config.ProgressColumn("Margin %", min_value=0, max_value=200, format="%.1f%%"),
+                     "Units/Month": st.column_config.NumberColumn("Units/Month", format="%d 📦"),
+                 }, height=400)
 
-with dl2:
-    try:
-        xl_bytes = generate_excel(summary_data)
-        st.download_button(
-            "📋 Download Excel Report",
-            data=xl_bytes,
-            file_name=f"VirVentures_AnalystReport_{report_date}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-    except Exception as e:
-        st.error(f"Excel error: {e}")
+    st.markdown("<br>")
+    # Margin vs Rank scatter
+    st.markdown("#### Margin % vs BSR Rank — Approved SKUs")
+    st.caption("Lower Rank = higher demand. Ideal ASINs: top-left (low rank, high margin)")
+    fig_s = px.scatter(yes_df, x='Rank', y='margin_pct', color='Analyst',
+                       size='Last month sold', hover_data=['ASIN','Brand','BB Price'],
+                       color_discrete_sequence=[ORANGE, BLUE, GREEN],
+                       labels={'Rank':'BSR Rank (lower=better)','margin_pct':'Margin %'})
+    fig_s.update_layout(height=380, plot_bgcolor='white', paper_bgcolor='white',
+                        font=dict(family='Inter'),
+                        yaxis=dict(showgrid=True,gridcolor='#F3F4F6',ticksuffix='%'),
+                        xaxis=dict(showgrid=True,gridcolor='#F3F4F6'))
+    st.plotly_chart(fig_s, use_container_width=True)
 
-with dl3:
-    csv_bytes = df[view_cols].to_csv(index=False).encode("utf-8") if view_cols else b""
-    st.download_button(
-        "📄 Download Filtered CSV",
-        data=csv_bytes,
-        file_name=f"VirVentures_FilteredData_{report_date}.csv",
-        mime="text/csv",
-    )
 
-st.markdown("<br><br>", unsafe_allow_html=True)
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 3 — ANALYST SCORECARD
+# ─────────────────────────────────────────────────────────────────────────────
+with tabs[2]:
+    st.markdown("#### 👥 Analyst Performance Scorecard")
+
+    analyst_stats = df.groupby('Analyst').agg(
+        Total=('ASIN','count'),
+        Approved=('is_yes','sum'),
+        Rejected=('is_yes', lambda x: (~x).sum()),
+        Approval_Rate=('is_yes', lambda x: round(x.mean()*100,1)),
+        Avg_Rank=('Rank','mean'),
+        Avg_Net_Price=('Net price','mean'),
+        Avg_BB_Price=('BB Price','mean'),
+        Avg_Margin_Pct=('margin_pct','mean'),
+        Avg_Demand_Score=('Total Demand Score','mean'),
+        Avg_Competition_Score=('Total Competition Score','mean'),
+        Avg_Margin_Score=('Total Margin Score','mean'),
+        Total_Units_Month=('Last month sold','sum'),
+    ).reset_index().round(1)
+
+    # Scorecards
+    cols = st.columns(len(analyst_stats))
+    for i,((_,row),col) in enumerate(zip(analyst_stats.iterrows(), cols)):
+        rate_c = GREEN if row['Approval_Rate']>=80 else AMBER if row['Approval_Rate']>=50 else RED
+        with col:
+            st.markdown(f"""
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:16px;padding:20px 16px;text-align:center;border-top:4px solid {rate_c};">
+<div style="font-size:26px;font-weight:800;color:{rate_c};">{row['Approval_Rate']}%</div>
+<div style="font-size:15px;font-weight:700;color:#0F1629;margin:4px 0;">{row['Analyst']}</div>
+<div style="font-size:11px;color:#6B7280;margin-bottom:12px;">Approval Rate</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;text-align:left;">
+  <div style="background:#F8F9FB;padding:6px 8px;border-radius:6px;"><span style="color:#9CA3AF;">Total</span><br><b>{int(row['Total'])}</b></div>
+  <div style="background:#F8F9FB;padding:6px 8px;border-radius:6px;"><span style="color:#9CA3AF;">Approved</span><br><b style="color:{GREEN};">{int(row['Approved'])}</b></div>
+  <div style="background:#F8F9FB;padding:6px 8px;border-radius:6px;"><span style="color:#9CA3AF;">Avg Margin</span><br><b style="color:{ORANGE};">{row['Avg_Margin_Pct']:.1f}%</b></div>
+  <div style="background:#F8F9FB;padding:6px 8px;border-radius:6px;"><span style="color:#9CA3AF;">Avg Rank</span><br><b>#{row['Avg_Rank']:,.0f}</b></div>
+</div>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown("<br>")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("#### Score Comparison Radar")
+        categories = ['Demand Score','Competition Score','Margin Score','Approval Rate']
+        fig_r = go.Figure()
+        colors_r = [ORANGE, BLUE, GREEN]
+        for i, (_, row) in enumerate(analyst_stats.iterrows()):
+            vals = [row['Avg_Demand_Score'], row['Avg_Competition_Score'],
+                    row['Avg_Margin_Score'], row['Approval_Rate']]
+            vals += [vals[0]]
+            cats = categories + [categories[0]]
+            fig_r.add_trace(go.Scatterpolar(r=vals, theta=cats, fill='toself',
+                                            name=row['Analyst'], line_color=colors_r[i],
+                                            fillcolor=colors_r[i], opacity=.25))
+        fig_r.update_layout(polar=dict(radialaxis=dict(visible=True,range=[0,110])),
+                            height=340, paper_bgcolor='white',
+                            font=dict(family='Inter'), legend=dict(orientation='h',y=-.1))
+        st.plotly_chart(fig_r, use_container_width=True)
+
+    with c2:
+        st.markdown("#### Workload vs Quality Matrix")
+        fig_m = px.scatter(analyst_stats, x='Total', y='Approval_Rate',
+                           size='Total_Units_Month', color='Analyst',
+                           text='Analyst',
+                           color_discrete_sequence=[ORANGE,BLUE,GREEN],
+                           labels={'Total':'SKUs Audited','Approval_Rate':'Approval Rate %'})
+        fig_m.update_traces(textposition='top center')
+        fig_m.add_hline(y=70, line_dash='dash', line_color='#9CA3AF')
+        fig_m.update_layout(height=340, plot_bgcolor='white', paper_bgcolor='white',
+                            font=dict(family='Inter'),
+                            yaxis=dict(ticksuffix='%',range=[0,115],showgrid=True,gridcolor='#F3F4F6'),
+                            xaxis=dict(showgrid=True,gridcolor='#F3F4F6'))
+        st.plotly_chart(fig_m, use_container_width=True)
+
+    st.markdown("#### Detailed Analyst Table")
+    st.dataframe(analyst_stats.rename(columns={
+        'Approval_Rate':'Approval Rate %','Avg_Rank':'Avg BSR Rank',
+        'Avg_Net_Price':'Avg Net Price ($)','Avg_BB_Price':'Avg BB Price ($)',
+        'Avg_Margin_Pct':'Avg Margin %','Avg_Demand_Score':'Avg Demand Score',
+        'Avg_Competition_Score':'Avg Competition Score','Avg_Margin_Score':'Avg Margin Score',
+        'Total_Units_Month':'Total Units/Month'
+    }), use_container_width=True, hide_index=True,
+    column_config={
+        "Approval Rate %": st.column_config.ProgressColumn("Approval Rate %", min_value=0, max_value=100, format="%.1f%%"),
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 4 — BRAND & VENDOR
+# ─────────────────────────────────────────────────────────────────────────────
+with tabs[3]:
+    st.markdown("#### 🏷️ Brand Intelligence")
+
+    brand_stats = df.groupby('Brand').agg(
+        Total_SKUs=('ASIN','count'),
+        Approved=('is_yes','sum'),
+        Avg_Margin_Pct=('margin_pct','mean'),
+        Total_Units_Month=('Last month sold','sum'),
+        Avg_Rank=('Rank','mean'),
+        Avg_BB_Price=('BB Price','mean'),
+        Avg_Net_Price=('Net price','mean'),
+    ).reset_index().round(1)
+    brand_stats['Approval_Rate'] = (brand_stats['Approved']/brand_stats['Total_SKUs']*100).round(1)
+    brand_stats = brand_stats.sort_values('Approved', ascending=False)
+
+    c1, c2 = st.columns([1.4,1])
+    with c1:
+        st.markdown("#### Brands by Approved SKUs")
+        top_brands = brand_stats.head(12)
+        fig_b = px.bar(top_brands, x='Approved', y='Brand', orientation='h',
+                       text='Approved', color='Avg_Margin_Pct',
+                       color_continuous_scale=[[0,'#FFF0E8'],[.5,ORANGE],[1,'#C9531A']],
+                       labels={'Avg_Margin_Pct':'Avg Margin %'})
+        fig_b.update_traces(textposition='outside')
+        fig_b.update_layout(height=400, margin=dict(l=0,r=40,t=0,b=0),
+                            plot_bgcolor='white', paper_bgcolor='white',
+                            yaxis=dict(categoryorder='total ascending'),
+                            coloraxis_colorbar=dict(title="Margin %",thickness=12,len=.7),
+                            font=dict(family='Inter'))
+        st.plotly_chart(fig_b, use_container_width=True)
+
+    with c2:
+        st.markdown("#### Demand vs Margin by Brand")
+        fig_bm = px.scatter(brand_stats[brand_stats['Approved']>0],
+                            x='Avg_Margin_Pct', y='Total_Units_Month',
+                            size='Approved', color='Approval_Rate', text='Brand',
+                            color_continuous_scale=[[0,RED],[.5,AMBER],[1,GREEN]],
+                            labels={'Avg_Margin_Pct':'Avg Margin %','Total_Units_Month':'Total Units/Month'})
+        fig_bm.update_traces(textposition='top center', textfont_size=9)
+        fig_bm.update_layout(height=400, plot_bgcolor='white', paper_bgcolor='white',
+                             font=dict(family='Inter'),
+                             yaxis=dict(showgrid=True,gridcolor='#F3F4F6'),
+                             xaxis=dict(showgrid=True,gridcolor='#F3F4F6',ticksuffix='%'),
+                             coloraxis_colorbar=dict(title="App. Rate %",thickness=12))
+        st.plotly_chart(fig_bm, use_container_width=True)
+
+    if 'Vendor Prefix' in df.columns:
+        st.markdown("#### Vendor Prefix Summary")
+        vp = df.groupby('Vendor Prefix').agg(
+            SKUs=('ASIN','count'), Approved=('is_yes','sum'),
+            Brands=('Brand','nunique'), Total_Units=('Last month sold','sum'),
+            Avg_Price=('Net price','mean'), Avg_Margin=('margin_pct','mean'),
+        ).reset_index().round(1)
+        vp['Approval Rate'] = (vp['Approved']/vp['SKUs']*100).round(1)
+        st.dataframe(vp, use_container_width=True, hide_index=True)
+
+    st.markdown("#### Full Brand Table")
+    st.dataframe(brand_stats.rename(columns={
+        'Total_SKUs':'Total SKUs','Avg_Margin_Pct':'Avg Margin %',
+        'Total_Units_Month':'Total Units/Month','Avg_Rank':'Avg BSR Rank',
+        'Avg_BB_Price':'Avg BB Price','Avg_Net_Price':'Avg Net Price',
+        'Approval_Rate':'Approval Rate %'
+    }), use_container_width=True, hide_index=True,
+    column_config={
+        "Approval Rate %": st.column_config.ProgressColumn("Approval Rate %", min_value=0, max_value=100, format="%.1f%%"),
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 5 — REJECTED DEEP DIVE
+# ─────────────────────────────────────────────────────────────────────────────
+with tabs[4]:
+    st.markdown("#### ⚠️ Rejected ASINs — Root Cause Analysis")
+    rej = df[~df['is_yes']].copy()
+
+    r1, r2 = st.columns(2)
+    with r1:
+        st.markdown("**Rejection Reason Breakdown**")
+        remarks = rej['Remarks '].fillna('Unspecified').value_counts().reset_index()
+        remarks.columns = ['Reason','Count']
+        fig_rej = px.pie(remarks, names='Reason', values='Count', hole=.45,
+                         color_discrete_sequence=[RED,'#F87171','#FCA5A5','#FECACA'])
+        fig_rej.update_layout(height=280, paper_bgcolor='white', margin=dict(l=0,r=0,t=0,b=0),
+                              font=dict(family='Inter'))
+        st.plotly_chart(fig_rej, use_container_width=True)
+
+    with r2:
+        st.markdown("**Margin Analysis — Rejected vs Approved**")
+        comp = pd.DataFrame({
+            'Category': ['Approved','Rejected'],
+            'Avg BB Price':   [df[df['is_yes']]['BB Price'].mean(),   rej['BB Price'].mean()],
+            'Avg Net Price':  [df[df['is_yes']]['Net price'].mean(),  rej['Net price'].mean()],
+            'Avg Breakeven':  [df[df['is_yes']]['Breakeven'].mean(),  rej['Breakeven'].mean()],
+        }).round(2)
+        fig_c = go.Figure()
+        for col, color in [('Avg BB Price',ORANGE),('Avg Net Price',BLUE),('Avg Breakeven',RED)]:
+            fig_c.add_trace(go.Bar(name=col, x=comp['Category'], y=comp[col],
+                                   marker_color=color, text=comp[col].round(2), textposition='outside'))
+        fig_c.update_layout(barmode='group', height=280, plot_bgcolor='white', paper_bgcolor='white',
+                            margin=dict(l=0,r=0,t=10,b=0), font=dict(family='Inter'),
+                            yaxis=dict(tickprefix='$',showgrid=True,gridcolor='#F3F4F6'),
+                            legend=dict(orientation='h',y=1.1))
+        st.plotly_chart(fig_c, use_container_width=True)
+
+    st.markdown("**Rejected ASIN Detail**")
+    rej_disp = rej[['ASIN','Brand','Analyst','Net price','BB Price','Breakeven',
+                     'Difference from SP','Rank','Total Product Score','Remarks ']].copy()
+    rej_disp['Margin Gap'] = (rej_disp['BB Price'] - rej_disp['Net price']).round(2)
+    st.dataframe(rej_disp.reset_index(drop=True), use_container_width=True, hide_index=True)
+
+    st.markdown("**Management Recommendation for Rejected ASINs**")
+    neg_margin = (rej['Remarks '].str.contains('Negative',na=False)).sum()
+    low_margin = (rej['Remarks '].str.contains('Low',na=False)).sum()
+    st.markdown(f"""
+<div style="background:#FFF1F2;border:1px solid #FECACA;border-radius:12px;padding:16px 20px;font-size:13px;line-height:1.8;">
+▸ <b>{neg_margin} ASINs</b> have negative margins — BB Price is below breakeven. Recommend requesting <b>vendor price reduction of 15-20%</b> before reactivation.<br>
+▸ <b>{low_margin} ASINs</b> show marginal profitability. Consider bundling or higher volume purchasing to improve unit economics.<br>
+▸ All {len(rej)} rejected ASINs belong to <b>{rej['Brand'].nunique()} brands</b>. Schedule vendor review for next sourcing cycle.
+</div>
+""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 6 — EXPORT
+# ─────────────────────────────────────────────────────────────────────────────
+with tabs[5]:
+    st.markdown("#### 📥 Export Boardroom Reports")
+    st.markdown("Both reports are generated live from your current filtered data.")
+
+    export_data = {
+        'df': df, 'week_label': week_label, 'report_date': str(report_date),
+        'total': total, 'approved': approved, 'rejected': rejected, 'rate': rate,
+        'avg_margin': avg_margin, 'avg_rank': avg_rank, 'total_demand': total_demand,
+    }
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("""
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;">
+<div style="font-size:32px;margin-bottom:8px;">📊</div>
+<div style="font-size:16px;font-weight:700;color:#0F1629;margin-bottom:4px;">PowerPoint Presentation</div>
+<div style="font-size:13px;color:#6B7280;margin-bottom:16px;">8 boardroom-ready slides. Cover, Executive Summary, ASIN Intelligence, Analyst Scorecards, Brand Analysis, Rejection Review, Sourcing Recommendations, and Next Steps. Navy × Orange premium theme.</div>
+</div>
+""", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        try:
+            pptx_bytes = generate_pptx(export_data)
+            st.download_button("📊 Download PowerPoint (.pptx)", data=pptx_bytes,
+                               file_name=f"VirVentures_BoardroomReport_{report_date}.pptx",
+                               mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
+        except Exception as e:
+            st.error(f"PPTX error: {e}")
+
+    with c2:
+        st.markdown("""
+<div style="background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:24px;">
+<div style="font-size:32px;margin-bottom:8px;">📋</div>
+<div style="font-size:16px;font-weight:700;color:#0F1629;margin-bottom:4px;">Excel Analyst Workbook</div>
+<div style="font-size:13px;color:#6B7280;margin-bottom:16px;">5 premium formatted sheets. Executive Dashboard, ASIN Intelligence, Analyst Scorecards, Brand Intelligence, and Rejection Analysis. Colour-coded rows, embedded charts, auto-filter, and freeze panes.</div>
+</div>
+""", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        try:
+            xl_bytes = generate_excel(export_data)
+            st.download_button("📋 Download Excel Workbook (.xlsx)", data=xl_bytes,
+                               file_name=f"VirVentures_AnalystWorkbook_{report_date}.xlsx",
+                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        except Exception as e:
+            st.error(f"Excel error: {e}")
+
+    st.markdown("<br>")
+    csv = df.to_csv(index=False).encode()
+    st.download_button("📄 Download Raw Filtered CSV", data=csv,
+                       file_name=f"VirVentures_RawData_{report_date}.csv", mime="text/csv")
