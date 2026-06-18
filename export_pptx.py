@@ -1,548 +1,428 @@
 """
-Vir Ventures — Boardroom PowerPoint Generator
-8 slides, navy × orange premium executive theme.
-All numbers pulled from live mastersheet data.
+Vir Ventures — 9-slide Boardroom PPTX with Vendor Analysis slide.
 """
-import io, numpy as np
+import io,numpy as np
 import pandas as pd
 from pptx import Presentation
-from pptx.util import Inches, Pt, Emu
+from pptx.util import Inches,Pt,Emu
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 
-# ── Palette ───────────────────────────────────────────────────────────────────
-NAVY    = RGBColor(0x0F,0x16,0x29)
-NAVY2   = RGBColor(0x1E,0x2A,0x45)
-ORANGE  = RGBColor(0xE8,0x61,0x1A)
-ORANGE2 = RGBColor(0xF4,0x87,0x4B)
-WHITE   = RGBColor(0xFF,0xFF,0xFF)
-LIGHT   = RGBColor(0xF8,0xF9,0xFB)
-LGRAY   = RGBColor(0xE5,0xE7,0xEB)
-GRAY    = RGBColor(0x6B,0x72,0x80)
-GREEN   = RGBColor(0x16,0xA3,0x4A)
-RED     = RGBColor(0xDC,0x26,0x26)
-AMBER   = RGBColor(0xD9,0x77,0x06)
-DARK    = RGBColor(0x11,0x18,0x27)
-BLUE    = RGBColor(0x25,0x63,0xEB)
+NV=RGBColor(0x0F,0x16,0x29); NV2=RGBColor(0x1E,0x2A,0x45)
+OR=RGBColor(0xE8,0x61,0x1A); OR2=RGBColor(0xF4,0x87,0x4B)
+WH=RGBColor(0xFF,0xFF,0xFF); LT=RGBColor(0xF8,0xF9,0xFB)
+LG=RGBColor(0xE5,0xE7,0xEB); GY=RGBColor(0x6B,0x72,0x80)
+GR=RGBColor(0x16,0xA3,0x4A); RD=RGBColor(0xDC,0x26,0x26)
+AM=RGBColor(0xD9,0x77,0x06); BL=RGBColor(0x25,0x63,0xEB)
+DK=RGBColor(0x11,0x18,0x27)
+VCLRS={"CRDI":OR,"PNCL":BL,"PROH":AM}
+VNAMES={"CRDI":"Gaming & Entertainment","PNCL":"The Pencil Grip","PROH":"Prohitter Sports"}
+W=Inches(13.33); H=Inches(7.5)
 
-W = Inches(13.33); H = Inches(7.5)
+YES_VALS={"yes","yes, need discount"}
+def is_yes(v): return str(v).strip().lower() in YES_VALS
 
-def _rect(slide, x, y, w, h, fill, line=None):
-    s = slide.shapes.add_shape(1, x, y, w, h)
-    s.fill.solid(); s.fill.fore_color.rgb = fill
-    if line: s.line.color.rgb = line
+def _r(slide,x,y,w,h,fill,line=None):
+    s=slide.shapes.add_shape(1,x,y,w,h)
+    s.fill.solid(); s.fill.fore_color.rgb=fill
+    if line: s.line.color.rgb=line
     else: s.line.fill.background()
     return s
 
-def _txt(slide, text, x, y, w, h, size=12, bold=False, color=WHITE,
-         align=PP_ALIGN.LEFT, italic=False):
-    tb = slide.shapes.add_textbox(x, y, w, h)
-    tf = tb.text_frame; tf.word_wrap = True
-    p = tf.paragraphs[0]; p.alignment = align
-    r = p.add_run(); r.text = str(text)
-    r.font.size = Pt(size); r.font.bold = bold
-    r.font.italic = italic; r.font.color.rgb = color
-    r.font.name = "Calibri"
+def _t(slide,text,x,y,w,h,sz=11,bold=False,color=WH,align=PP_ALIGN.LEFT,italic=False):
+    tb=slide.shapes.add_textbox(x,y,w,h)
+    tf=tb.text_frame; tf.word_wrap=True
+    p=tf.paragraphs[0]; p.alignment=align
+    r2=p.add_run(); r2.text=str(text)
+    r2.font.size=Pt(sz); r2.font.bold=bold
+    r2.font.italic=italic; r2.font.color.rgb=color
+    r2.font.name="Calibri"
     return tb
 
-def _set_bg(slide, color):
-    fill = slide.background.fill
-    fill.solid(); fill.fore_color.rgb = color
+def _bg(slide,color):
+    fill=slide.background.fill; fill.solid(); fill.fore_color.rgb=color
 
-def _kpi_card(slide, x, y, w, h, label, value, sub, accent=ORANGE, val_color=None):
-    _rect(slide, x, y, w, h, WHITE)
-    _rect(slide, x, y, w, Inches(0.055), accent)
-    _txt(slide, label, x+Inches(.18), y+Inches(.12), w-Inches(.25), Inches(.22),
-         size=8, bold=True, color=GRAY)
-    _txt(slide, value, x+Inches(.18), y+Inches(.37), w-Inches(.25), Inches(.65),
-         size=28, bold=True, color=val_color or DARK)
-    _txt(slide, sub, x+Inches(.18), y+Inches(1.0), w-Inches(.25), Inches(.22),
-         size=9, color=GRAY)
+def _hdr(slide,title,sub,week):
+    _r(slide,Emu(0),Emu(0),W,Inches(.75),NV)
+    _t(slide,title.upper(),Inches(.45),Inches(.12),Inches(9),Inches(.5),sz=10,bold=True,color=OR)
+    _t(slide,week,W-Inches(3.2),Inches(.12),Inches(2.9),Inches(.5),sz=10,color=LG,align=PP_ALIGN.RIGHT)
+    _t(slide,sub,Inches(.45),Inches(.82),Inches(11),Inches(.3),sz=11,color=GY)
 
-def _slide_header(slide, title, subtitle, week):
-    _rect(slide, Emu(0), Emu(0), W, Inches(.75), NAVY)
-    _txt(slide, title.upper(), Inches(.45), Inches(.12), Inches(9), Inches(.5),
-         size=10, bold=True, color=ORANGE)
-    _txt(slide, week, W-Inches(3.2), Inches(.12), Inches(2.9), Inches(.5),
-         size=10, color=LGRAY, align=PP_ALIGN.RIGHT)
-    _txt(slide, subtitle, Inches(.45), Inches(.82), Inches(10), Inches(.32),
-         size=11, color=GRAY)
+def _ftr(slide):
+    _r(slide,Emu(0),H-Inches(.35),W,Inches(.35),NV)
+    _t(slide,"VIR VENTURES  ·  BOARDROOM ANALYST REPORT  ·  CONFIDENTIAL",
+       Inches(.4),H-Inches(.3),W-Inches(.8),Inches(.25),sz=7,bold=True,color=RGBColor(0x3A,0x42,0x60))
 
-def _footer(slide):
-    _rect(slide, Emu(0), H-Inches(.38), W, Inches(.38), NAVY)
-    _txt(slide, "VIR VENTURES  ·  BOARDROOM ANALYST REPORT  ·  CONFIDENTIAL",
-         Inches(.4), H-Inches(.32), W-Inches(.8), Inches(.28),
-         size=8, bold=True, color=RGBColor(0x3A,0x42,0x60))
+def _kpi(slide,x,y,w,h,label,val,sub,acc=OR,vc=None):
+    _r(slide,x,y,w,h,WH)
+    _r(slide,x,y,w,Inches(.05),acc)
+    _t(slide,label,x+Inches(.15),y+Inches(.1),w-Inches(.2),Inches(.2),sz=7,bold=True,color=GY)
+    _t(slide,val, x+Inches(.15),y+Inches(.32),w-Inches(.2),Inches(.62),sz=26,bold=True,color=vc or DK)
+    _t(slide,sub, x+Inches(.15),y+Inches(.95),w-Inches(.2),Inches(.2),sz=9,color=GY)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# SLIDE 1 — COVER
-# ═══════════════════════════════════════════════════════════════════════════════
-def slide_cover(prs, d):
-    s = prs.slides.add_slide(prs.slide_layouts[6]); _set_bg(s, NAVY)
-    _rect(s, W-Inches(3.8), Emu(0), Inches(3.8), Inches(2.6), ORANGE)
-    _rect(s, W-Inches(2.2), Emu(0), Inches(2.2), H, NAVY2)
-    _txt(s, "VIR VENTURES", Inches(.7), Inches(1.4), Inches(7), Inches(.55),
-         size=13, bold=True, color=ORANGE)
-    _txt(s, "Boardroom Analyst\nPerformance Report",
-         Inches(.7), Inches(2.1), Inches(8.5), Inches(2.2),
-         size=46, bold=True, color=WHITE)
-    _txt(s, d['week_label'], Inches(.7), Inches(4.5), Inches(7), Inches(.45),
-         size=17, color=ORANGE2)
-    _txt(s, f"Report Date: {d['report_date']}   ·   SKUs Reviewed: {d['total']}   ·   Approval Rate: {d['rate']}%",
-         Inches(.7), Inches(5.1), Inches(9), Inches(.32), size=11, color=GRAY)
-    _txt(s, "Confidential — Internal Management Use Only",
-         Inches(.7), Inches(5.5), Inches(7), Inches(.3), size=10, color=RGBColor(0x3A,0x42,0x60))
-    _rect(s, Emu(0), H-Inches(.5), W-Inches(2.2), Inches(.5), ORANGE)
-    _txt(s, "ANALYST PERFORMANCE TRACKER  ·  WEEKLY REVIEW",
-         Inches(.4), H-Inches(.45), W-Inches(2.6), Inches(.4),
-         size=9, bold=True, color=WHITE)
-    s.notes_slide.notes_text_frame.text = (
-        "Welcome to the weekly Vir Ventures Boardroom Analyst Report. "
-        "This presentation covers ASIN-level performance, analyst scorecards, "
-        "brand intelligence, and sourcing recommendations for the management team."
-    )
+# ─── SLIDE 1: COVER ──────────────────────────────────────────────────────────
+def s_cover(prs,d):
+    s=prs.slides.add_slide(prs.slide_layouts[6]); _bg(s,NV)
+    _r(s,W-Inches(3.6),Emu(0),Inches(3.6),Inches(2.4),OR)
+    _r(s,W-Inches(2.0),Emu(0),Inches(2.0),H,NV2)
+    _t(s,"VIR VENTURES",Inches(.7),Inches(1.4),Inches(7),Inches(.5),sz=13,bold=True,color=OR)
+    _t(s,"Boardroom Analyst\nPerformance Report",Inches(.7),Inches(2.1),Inches(8.5),Inches(2.2),sz=44,bold=True,color=WH)
+    _t(s,d['week_label'],Inches(.7),Inches(4.5),Inches(7),Inches(.45),sz=16,color=OR2)
+    _t(s,f"Report Date: {d['report_date']}  ·  SKUs: {d['total']}  ·  Approval Rate: {d['rate']}%",Inches(.7),Inches(5.1),Inches(9),Inches(.3),sz=11,color=GY)
+    _r(s,Emu(0),H-Inches(.5),W-Inches(2.0),Inches(.5),OR)
+    _t(s,"ANALYST PERFORMANCE TRACKER  ·  WEEKLY BOARDROOM REVIEW",Inches(.4),H-Inches(.44),W-Inches(2.4),Inches(.38),sz=9,bold=True,color=WH)
+    s.notes_slide.notes_text_frame.text="Cover slide. Open with week overview and introduce the three key sections: Vendor Analysis, ASIN Intelligence, and Analyst Performance."
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# SLIDE 2 — EXECUTIVE SUMMARY
-# ═══════════════════════════════════════════════════════════════════════════════
-def slide_exec_summary(prs, d):
-    df = d['df']
-    s = prs.slides.add_slide(prs.slide_layouts[6]); _set_bg(s, LIGHT)
-    _slide_header(s, "Executive Summary", "Week-on-week snapshot for management review", d['week_label'])
-    _footer(s)
+# ─── SLIDE 2: EXECUTIVE SUMMARY ──────────────────────────────────────────────
+def s_exec(prs,d):
+    df=d['df']
+    s=prs.slides.add_slide(prs.slide_layouts[6]); _bg(s,LT)
+    _hdr(s,"Executive Summary","At-a-glance performance snapshot for management",d['week_label']); _ftr(s)
 
-    # KPI cards
-    cw = Inches(2.8); ch = Inches(1.5); gap = Inches(.2); sy = Inches(1.25)
-    kpis = [
-        ("CATALOGUE SIZE",    str(d['total']),               "Total SKUs reviewed",    ORANGE, DARK),
-        ("APPROVED",          str(d['approved']),            "Yes + Yes, Need Discount", GREEN, GREEN),
-        ("REJECTED",          str(d['rejected']),            "Negative / Low margin",  RED,   RED),
-        ("APPROVAL RATE",     f"{d['rate']}%",               f"of {d['total']} SKUs",  BLUE,  BLUE),
+    cw=Inches(2.8); ch=Inches(1.42); gap=Inches(.2); ky=Inches(1.2)
+    kpis=[("CATALOGUE SIZE",str(d['total']),"Total SKUs reviewed",OR,DK),
+          ("APPROVED",str(d['approved']),f"{d['rate']}% approval rate",GR,GR),
+          ("REJECTED",str(d['rejected']),"Negative/Low margin",RD,RD),
+          ("APPROVAL RATE",f"{d['rate']}%",f"of {d['total']} SKUs",BL,BL)]
+    for i,(lbl,val,sub,acc,vc) in enumerate(kpis):
+        _kpi(s,Inches(.4)+i*(cw+gap),ky,cw,ch,lbl,val,sub,acc,vc)
+
+    yl=df[df['is_yes']]
+    top_a=df.groupby('Analyst')['is_yes'].mean().idxmax() if not yl.empty else "—"
+    top_ar=round(df.groupby('Analyst')['is_yes'].mean().max()*100,1) if not yl.empty else 0
+    top_brand=yl.groupby('Brand')['ASIN'].count().idxmax() if not yl.empty else "—"
+    top_brand_n=int(yl.groupby('Brand')['ASIN'].count().max()) if not yl.empty else 0
+    top_asin=yl.sort_values('Last month sold',ascending=False).iloc[0] if not yl.empty else None
+    avg_m=round(yl['margin_pct'].mean(),1) if not yl.empty else 0
+    vp_count=df['Vendor Prefix'].nunique() if 'Vendor Prefix' in df.columns else "—"
+
+    _r(s,Inches(.4),Inches(2.82),Inches(12.5),Inches(3.85),WH)
+    _t(s,"KEY MANAGEMENT INSIGHTS",Inches(.6),Inches(2.92),Inches(8),Inches(.28),sz=8,bold=True,color=OR)
+    bullets=[
+        f"This week {d['total']} SKUs reviewed across {df['Brand'].nunique()} brands and {vp_count} vendor groups. Overall approval rate: {d['rate']}%.",
+        f"{top_a} is top analyst — {top_ar}% approval rate. Strong demand-score selection with low FBA competition picks.",
+        f"Average Buy Box margin on approved SKUs: {avg_m}% — well above breakeven across all vendors.",
+        f"{top_brand} leads brand performance with {top_brand_n} approved SKUs — immediate PO action recommended.",
+        f"Top ASIN: {top_asin['ASIN'] if top_asin is not None else '—'} ({top_asin['Brand'] if top_asin is not None else '—'}) — {int(top_asin['Last month sold']) if top_asin is not None else 0} units/month.",
+        f"{d['rejected']} SKUs rejected (all PROH vendor) — negative/low margin. Vendor renegotiation required.",
     ]
-    for i,(label,val,sub,accent,vc) in enumerate(kpis):
-        _kpi_card(s, Inches(.4)+i*(cw+gap), sy, cw, ch, label, val, sub, accent, vc)
-
-    # Key insights panel
-    _rect(s, Inches(.4), Inches(3.0), Inches(11.5), Inches(3.65), WHITE)
-    _txt(s, "KEY MANAGEMENT INSIGHTS", Inches(.6), Inches(3.1),
-         Inches(8), Inches(.3), size=9, bold=True, color=ORANGE)
-
-    yes_df   = df[df['is_yes']]
-    top_a    = df.groupby('Analyst')['is_yes'].mean().idxmax()
-    top_a_r  = round(df.groupby('Analyst')['is_yes'].mean()[top_a]*100,1)
-    top_a_n  = int(df[df['Analyst']==top_a]['is_yes'].sum())
-    top_brand = yes_df.groupby('Brand')['ASIN'].count().idxmax()
-    top_brand_n = int(yes_df.groupby('Brand')['ASIN'].count().max())
-    top_asin = yes_df.sort_values('Last month sold',ascending=False).iloc[0]
-    avg_m    = round(yes_df['margin_pct'].mean(),1)
-    neg_m    = df[~df['is_yes']]['Remarks '].str.contains('Negative',na=False).sum()
-    vendors  = df['Vendor Prefix'].nunique() if 'Vendor Prefix' in df.columns else '—'
-
-    bullets = [
-        f"This week, {d['total']} SKUs were reviewed across {df['Brand'].nunique()} brands and {vendors} vendor prefixes. Overall approval rate is {d['rate']}%.",
-        f"{top_a} is the top-performing analyst this week with {top_a_n} approvals and a {top_a_r}% approval rate — demonstrating consistent quality selection.",
-        f"Average Buy Box margin on approved SKUs is {avg_m}%, well above breakeven — indicating healthy profitability on sourced inventory.",
-        f"{top_brand} leads brand performance with {top_brand_n} approved SKUs — recommend prioritising this vendor for immediate PO actioning.",
-        f"Top demand ASIN: {top_asin['ASIN']} ({top_asin['Brand']}) — {int(top_asin['Last month sold'])} units sold last month at ${top_asin['BB Price']:.2f} BB price.",
-        f"{d['rejected']} ASINs rejected — {neg_m} flagged Negative Margin. Require vendor renegotiation before reconsideration.",
-    ]
-    by = Inches(3.5)
+    by=Inches(3.35)
     for b in bullets:
-        _rect(s, Inches(.55), by, Inches(0.06), Inches(0.22), ORANGE)
-        _txt(s, b, Inches(.72), by-Inches(.02), Inches(11.0), Inches(.38),
-             size=11, color=DARK)
-        by += Inches(.44)
+        _r(s,Inches(.55),by,Inches(.055),Inches(.2),OR)
+        _t(s,b,Inches(.72),by-Inches(.02),Inches(11.1),Inches(.36),sz=11,color=DK)
+        by+=Inches(.43)
+    s.notes_slide.notes_text_frame.text="Walk through KPIs first. Then deliver each insight as a talking point. Assign actions before leaving slide."
 
-    s.notes_slide.notes_text_frame.text = (
-        "Walk through each KPI first. Then present the six insights in order. "
-        "Emphasise the approval rate and top analyst performance. "
-        "Flag the rejected SKUs for the sourcing team to action post-meeting."
-    )
+# ─── SLIDE 3: VENDOR ANALYSIS ────────────────────────────────────────────────
+def s_vendor(prs,d):
+    df=d['df']
+    s=prs.slides.add_slide(prs.slide_layouts[6]); _bg(s,LT)
+    _hdr(s,"Vendor Analysis","Performance breakdown by vendor group — CRDI · PNCL · PROH",d['week_label']); _ftr(s)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# SLIDE 3 — TOP APPROVED ASINs
-# ═══════════════════════════════════════════════════════════════════════════════
-def slide_top_asins(prs, d):
-    df   = d['df']
-    s    = prs.slides.add_slide(prs.slide_layouts[6]); _set_bg(s, LIGHT)
-    _slide_header(s, "ASIN Intelligence — Top Approved SKUs",
-                  "Ranked by monthly demand velocity · All values from live mastersheet", d['week_label'])
-    _footer(s)
+    if 'Vendor Prefix' not in df.columns:
+        _t(s,"No Vendor Prefix column in data.",Inches(2),Inches(3),Inches(9),Inches(1),sz=14,color=GY)
+        return
 
-    yes_df = df[df['is_yes']].sort_values('Last month sold', ascending=False).head(10)
-
-    # Table header
-    _rect(s, Inches(.4), Inches(1.2), Inches(12.5), Inches(.42), NAVY)
-    headers = [("ASIN",1.5),("Brand",2.2),("Analyst",.95),("Rec.",.85),
-               ("Units/Mo",.85),("Net $",.75),("BB $",.75),("Margin%",.85),
-               ("BSR Rank",.95),("Score",.7),("BB Holder",1.3)]
-    cx = Inches(.4)
-    for hdr,cw in headers:
-        _txt(s, hdr, cx+Inches(.06), Inches(1.25), Inches(cw-.1), Inches(.32),
-             size=8, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
-        cx += Inches(cw)
-
-    # Data rows
-    for ri,(_, row) in enumerate(yes_df.iterrows()):
-        ry = Inches(1.62) + ri*Inches(.52)
-        bg = WHITE if ri%2==0 else LIGHT
-        _rect(s, Inches(.4), ry, Inches(12.5), Inches(.5), bg)
-        if ri==0: _rect(s, Inches(.4), ry, Inches(.07), Inches(.5), ORANGE)
-
-        cells = [
-            (str(row.get('ASIN',''))[:12],          1.5, DARK,  False),
-            (str(row.get('Brand',''))[:20],         2.2, DARK,  ri==0),
-            (str(row.get('Analyst','')),             .95, GRAY,  False),
-            (str(row.get('Recommended',''))[:14],    .85, ORANGE if ri==0 else GRAY, False),
-            (f"{int(row.get('Last month sold',0))}",  .85, GREEN, True),
-            (f"${row.get('Net price',0):.2f}",        .75, DARK,  False),
-            (f"${row.get('BB Price',0):.2f}",         .75, DARK,  False),
-            (f"{row.get('margin_pct',0):.1f}%",       .85, ORANGE,True),
-            (f"#{int(row.get('Rank',0)):,}",           .95, DARK,  False),
-            (str(row.get('Total Product Score','')),   .70, DARK,  False),
-            (str(row.get('BuyBoxSellerName',''))[:14], 1.3, GRAY,  False),
-        ]
-        tx = Inches(.4)
-        for val, cw, col, bld in cells:
-            _txt(s, val, tx+Inches(.06), ry+Inches(.12), Inches(cw-.1), Inches(.28),
-                 size=9, bold=bld, color=col, align=PP_ALIGN.CENTER)
-            tx += Inches(cw)
-
-    s.notes_slide.notes_text_frame.text = (
-        "This table ranks all approved ASINs by monthly unit velocity. "
-        "Highlight the top 3 rows for immediate PO actioning. "
-        "Margin % column shows Buy Box premium over our net cost. "
-        "Higher margin + lower BSR rank = highest priority for sourcing."
-    )
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# SLIDE 4 — ANALYST SCORECARDS
-# ═══════════════════════════════════════════════════════════════════════════════
-def slide_analyst(prs, d):
-    df   = d['df']
-    s    = prs.slides.add_slide(prs.slide_layouts[6]); _set_bg(s, LIGHT)
-    _slide_header(s, "Analyst Performance Scorecards",
-                  "Individual audit quality, throughput, and scoring breakdown", d['week_label'])
-    _footer(s)
-
-    analysts = df.groupby('Analyst').agg(
-        Total=('ASIN','count'),
-        Approved=('is_yes','sum'),
-        Rejected=('is_yes', lambda x:(~x).sum()),
-        Rate=('is_yes', lambda x:round(x.mean()*100,1)),
-        AvgRank=('Rank','mean'),
-        AvgNetPrice=('Net price','mean'),
-        AvgBBPrice=('BB Price','mean'),
-        AvgMarginPct=('margin_pct','mean'),
-        AvgDemand=('Total Demand Score','mean'),
-        AvgComp=('Total Competition Score','mean'),
-        AvgMarginScore=('Total Margin Score','mean'),
-        TotalUnits=('Last month sold','sum'),
+    vp=df.groupby('Vendor Prefix').agg(
+        Total=('ASIN','count'),Approved=('is_yes','sum'),
+        Rejected=('is_yes',lambda x:(~x).sum()),
+        Brands=('Brand','nunique'),Units=('Last month sold','sum'),
+        AvgM=('margin_pct','mean'),AvgRank=('Rank','mean'),
+        AvgDem=('Total Demand Score','mean'),AvgComp=('Total Competition Score','mean'),
+        AvgMarSc=('Total Margin Score','mean'),
     ).reset_index().round(1)
+    vp['Rate']=(vp['Approved']/vp['Total']*100).round(1)
 
-    n = len(analysts)
-    card_w = Inches(12.4/n); card_h = Inches(5.5)
-    start_x = Inches(.4)
+    n=len(vp); cw2=Inches(12.3/n); sy=Inches(1.2); gap2=Inches(.18)
 
-    for i,(_,row) in enumerate(analysts.iterrows()):
-        cx = start_x + i*card_w + i*Inches(.1)
-        rate = row['Rate']
-        accent = GREEN if rate>=80 else AMBER if rate>=50 else RED
+    for i,(_,row) in enumerate(vp.iterrows()):
+        pfx=row['Vendor Prefix']
+        clr=VCLRS.get(pfx,OR)
+        rate=row['Rate']
+        rate_clr=GR if rate>=80 else (AM if rate>=50 else RD)
+        cx=Inches(.4)+i*(cw2+gap2)
 
-        _rect(s, cx, Inches(1.2), card_w, card_h, WHITE)
-        _rect(s, cx, Inches(1.2), card_w, Inches(.08), accent)
+        _r(s,cx,sy,cw2,Inches(5.6),WH)
+        _r(s,cx,sy,cw2,Inches(.07),clr)
 
-        # Name & rate
-        _txt(s, row['Analyst'], cx+Inches(.2), Inches(1.35), card_w-Inches(.3), Inches(.45),
-             size=18, bold=True, color=DARK)
-        _txt(s, f"{rate}% APPROVAL", cx+Inches(.2), Inches(1.85), card_w-Inches(.3), Inches(.32),
-             size=11, bold=True, color=accent)
+        _t(s,pfx,cx+Inches(.18),sy+Inches(.12),cw2-Inches(.25),Inches(.3),sz=11,bold=True,color=clr)
+        _t(s,VNAMES.get(pfx,pfx),cx+Inches(.18),sy+Inches(.45),cw2-Inches(.25),Inches(.35),sz=10,color=DK)
 
-        # Stats grid
-        stats = [
-            ("Total Audited",   str(int(row['Total']))),
-            ("Approved",        str(int(row['Approved']))),
-            ("Rejected",        str(int(row['Rejected']))),
-            ("Avg Margin %",    f"{row['AvgMarginPct']:.1f}%"),
-            ("Avg BSR Rank",    f"#{row['AvgRank']:,.0f}"),
-            ("Avg Net Price",   f"${row['AvgNetPrice']:.2f}"),
-            ("Avg BB Price",    f"${row['AvgBBPrice']:.2f}"),
-            ("Total Units/Mo",  str(int(row['TotalUnits']))),
-            ("Demand Score",    str(row['AvgDemand'])),
-            ("Competition Sc.", str(row['AvgComp'])),
-            ("Margin Score",    str(row['AvgMarginScore'])),
-        ]
-        sy = Inches(2.3)
-        for label, val in stats:
-            _rect(s, cx+Inches(.15), sy, card_w-Inches(.25), Inches(.42), LIGHT)
-            _txt(s, label, cx+Inches(.22), sy+Inches(.03), card_w-Inches(.4), Inches(.18),
-                 size=8, color=GRAY)
-            _txt(s, val, cx+Inches(.22), sy+Inches(.2), card_w-Inches(.4), Inches(.2),
-                 size=11, bold=True, color=DARK)
-            sy += Inches(.47)
+        # Rate big number
+        _t(s,f"{rate}%",cx+Inches(.18),sy+Inches(.88),cw2-Inches(.25),Inches(.72),sz=32,bold=True,color=rate_clr)
+        _t(s,"Approval Rate",cx+Inches(.18),sy+Inches(1.6),cw2-Inches(.25),Inches(.22),sz=8,color=GY)
 
-    s.notes_slide.notes_text_frame.text = (
-        "Each card represents one analyst's full week performance. "
-        "Green = 80%+ approval rate. Amber = 50-79%. Red = below 50%. "
-        "Discuss throughput vs quality balance. "
-        "Note: 100% approval rate analysts had clean vendor batches with strong demand scores."
-    )
+        stats=[("Total SKUs",str(int(row['Total']))),
+               ("Approved",str(int(row['Approved']))),
+               ("Rejected",str(int(row['Rejected']))),
+               ("Units/Month",str(int(row['Units']))),
+               ("Avg Margin %",f"{row['AvgM']:.1f}%"),
+               ("Avg BSR Rank",f"#{row['AvgRank']:,.0f}"),
+               ("Brands",str(int(row['Brands']))),
+               ("Demand Score",str(row['AvgDem']))]
+        sy2=sy+Inches(1.9)
+        for lbl2,val2 in stats:
+            _r(s,cx+Inches(.15),sy2,cw2-Inches(.25),Inches(.4),LT)
+            _t(s,lbl2,cx+Inches(.2),sy2+Inches(.02),cw2-Inches(.35),Inches(.18),sz=7,color=GY)
+            _t(s,val2,cx+Inches(.2),sy2+Inches(.2),cw2-Inches(.35),Inches(.18),sz=10,bold=True,
+               color=GR if lbl2=="Approved" else (RD if lbl2=="Rejected" else (OR if "Margin" in lbl2 else DK)))
+            sy2+=Inches(.46)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# SLIDE 5 — BRAND & VENDOR ANALYSIS
-# ═══════════════════════════════════════════════════════════════════════════════
-def slide_brands(prs, d):
-    df   = d['df']
-    s    = prs.slides.add_slide(prs.slide_layouts[6]); _set_bg(s, LIGHT)
-    _slide_header(s, "Brand & Vendor Intelligence",
-                  "Approved SKU count, margin performance, and demand velocity by brand", d['week_label'])
-    _footer(s)
+    # Key vendor insight
+    best_v=vp.loc[vp['Rate'].idxmax(),'Vendor Prefix']
+    worst_v=vp.loc[vp['Rate'].idxmin(),'Vendor Prefix']
+    best_units=int(vp.loc[vp['Units'].idxmax(),'Units'])
+    best_units_v=vp.loc[vp['Units'].idxmax(),'Vendor Prefix']
+    _r(s,Inches(.4),Inches(7.0),Inches(12.5),Inches(.2),OR)
+    note=f"Best vendor: {best_v} ({vp.loc[vp['Vendor Prefix']==best_v,'Rate'].values[0]:.0f}% approval)  ·  Most demand: {best_units_v} ({best_units:,} units/mo)  ·  Needs attention: {worst_v}"
+    _t(s,note,Inches(.5),Inches(7.0),Inches(12.0),Inches(.2),sz=9,bold=True,color=WH)
+    s.notes_slide.notes_text_frame.text="Compare the three vendor cards side by side. CRDI = gaming, high-value SKUs. PNCL = stationery, 100% approval. PROH = problematic, all rejections come from here."
 
-    brand = df[df['is_yes']].groupby('Brand').agg(
-        Approved=('ASIN','count'),
-        TotalUnits=('Last month sold','sum'),
-        AvgMarginPct=('margin_pct','mean'),
-        AvgRank=('Rank','mean'),
-    ).reset_index().sort_values('Approved',ascending=False).head(10).round(1)
+# ─── SLIDE 4: TOP ASINs ──────────────────────────────────────────────────────
+def s_asins(prs,d):
+    df=d['df']
+    s=prs.slides.add_slide(prs.slide_layouts[6]); _bg(s,LT)
+    _hdr(s,"ASIN Intelligence — Top Approved SKUs","Ranked by monthly demand velocity",d['week_label']); _ftr(s)
 
-    total_approved = brand['Approved'].sum()
-    max_approved   = brand['Approved'].max()
-
-    # Bar chart (manual)
-    chart_x = Inches(.4); chart_y = Inches(1.25)
-    bar_h = Inches(.44); gap = Inches(.1)
-    track_w = Inches(7.5); label_w = Inches(2.0); count_w = Inches(.6)
-
-    _txt(s, "BRAND", chart_x, chart_y-Inches(.3), label_w, Inches(.25),
-         size=8, bold=True, color=GRAY)
-    _txt(s, "APPROVED SKUs →", chart_x+label_w+Inches(.1), chart_y-Inches(.3),
-         track_w, Inches(.25), size=8, bold=True, color=GRAY)
-
-    for i,(_,row) in enumerate(brand.iterrows()):
-        by = chart_y + i*(bar_h+gap)
-        pct = row['Approved']/max_approved if max_approved else 0
-        fill_w = max(Inches(.15), track_w*pct)
-        clr = ORANGE if i==0 else ORANGE2 if i<3 else RGBColor(0xF9,0xC0,0x8E)
-
-        # Label
-        _txt(s, row['Brand'], chart_x, by+Inches(.1), label_w, bar_h,
-             size=10, bold=(i==0), color=DARK, align=PP_ALIGN.RIGHT)
-        # Track
-        _rect(s, chart_x+label_w+Inches(.15), by, track_w, bar_h, LGRAY)
-        # Fill
-        _rect(s, chart_x+label_w+Inches(.15), by, fill_w, bar_h, clr)
-        # Count
-        _txt(s, str(int(row['Approved'])),
-             chart_x+label_w+Inches(.15)+fill_w+Inches(.08), by+Inches(.1),
-             Inches(.5), bar_h, size=10, bold=(i==0), color=DARK)
-
-    # Right panel — brand metrics table
-    tx = Inches(10.0); ty = Inches(1.25)
-    _txt(s, "BRAND METRICS SNAPSHOT", tx, ty-Inches(.35), Inches(2.9), Inches(.28),
-         size=8, bold=True, color=ORANGE)
-
-    # Header
-    _rect(s, tx, ty, Inches(2.9), Inches(.38), NAVY)
-    for hdr, cx_off, w in [("Brand",0,1.0),("Units/Mo",1.05,.85),("Margin%",1.95,.95)]:
-        _txt(s, hdr, tx+Inches(cx_off)+Inches(.05), ty+Inches(.08), Inches(w), Inches(.22),
-             size=8, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
-
-    for ri,(_,row) in enumerate(brand.iterrows()):
-        ry2 = ty+Inches(.38)+ri*Inches(.47)
-        bg2 = WHITE if ri%2==0 else LIGHT
-        _rect(s, tx, ry2, Inches(2.9), Inches(.45), bg2)
-        cells2 = [
-            (str(row['Brand'])[:12], 0,    1.0, DARK,  ri==0),
-            (str(int(row['TotalUnits'])),  1.05, .85, GREEN, False),
-            (f"{row['AvgMarginPct']:.1f}%",1.95,  .95, ORANGE, True),
-        ]
-        for val2, cx_off2, w2, col2, bld2 in cells2:
-            _txt(s, val2, tx+Inches(cx_off2)+Inches(.05), ry2+Inches(.12),
-                 Inches(w2), Inches(.22), size=9, bold=bld2, color=col2, align=PP_ALIGN.CENTER)
-
-    s.notes_slide.notes_text_frame.text = (
-        "Focus on the top 3 brands — these should drive this week's purchase orders. "
-        "The bar length shows relative SKU approval count. "
-        "Margin % and units/month together determine sourcing priority. "
-        "High margin + high units = immediate action required."
-    )
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# SLIDE 6 — REJECTION ANALYSIS
-# ═══════════════════════════════════════════════════════════════════════════════
-def slide_rejected(prs, d):
-    df = d['df']
-    s  = prs.slides.add_slide(prs.slide_layouts[6]); _set_bg(s, LIGHT)
-    _slide_header(s, "Rejection Analysis — Root Cause Review",
-                  "All rejected ASINs with margin breakdown and recommended next actions", d['week_label'])
-    _footer(s)
-
-    rej = df[~df['is_yes']].copy()
-
-    # Reason summary cards
-    reasons = rej['Remarks '].fillna('Unspecified').value_counts()
-    neg = int(reasons.get('Negative Margin',0))
-    low = int(reasons.get('Low Margin',0))
-    oth = d['rejected'] - neg - low
-
-    reason_cards = [
-        ("NEGATIVE MARGIN", str(neg), "BB Price < Breakeven", RED),
-        ("LOW MARGIN",       str(low), "Marginal profitability", AMBER),
-        ("OTHER REASONS",    str(oth), "Review required",        GRAY),
-    ]
-    cw2 = Inches(3.5); sy2 = Inches(1.2)
-    for i,(label,val,sub,clr) in enumerate(reason_cards):
-        cx2 = Inches(.4)+i*(cw2+Inches(.25))
-        _kpi_card(s, cx2, sy2, cw2, Inches(1.4), label, val, sub, clr, clr)
-
-    # Rejected ASIN table
-    _rect(s, Inches(.4), Inches(2.85), Inches(12.5), Inches(.4), NAVY)
-    hdrs = [("ASIN",1.6),("Brand",1.7),("Analyst",.9),
-            ("Net Price",.95),("BB Price",.95),("Breakeven",.95),
-            ("Diff from SP",.95),("Reason",2.4),("Score",.75)]
-    cx3 = Inches(.4)
+    yl=df[df['is_yes']].sort_values('Last month sold',ascending=False).head(10)
+    _r(s,Inches(.4),Inches(1.2),Inches(12.5),Inches(.4),NV)
+    hdrs=[("ASIN",1.5),("Vendor",0.85),("Brand",2.0),("Analyst",.9),("Rec.",.85),
+          ("Units/Mo",.85),("Net $",.7),("BB $",.7),("Margin%",.8),("Rank",.95),("Score",.65),("BB Holder",1.3)]
+    cx=Inches(.4)
     for hdr,cw3 in hdrs:
-        _txt(s, hdr, cx3+Inches(.06), Inches(2.9), Inches(cw3-.1), Inches(.28),
-             size=8, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
-        cx3 += Inches(cw3)
+        _t(s,hdr,cx+Inches(.05),Inches(1.25),Inches(cw3-.08),Inches(.3),sz=7,bold=True,color=WH,align=PP_ALIGN.CENTER)
+        cx+=Inches(cw3)
+
+    for ri,(_,row) in enumerate(yl.iterrows()):
+        ry=Inches(1.62)+ri*Inches(.51)
+        bg=WH if ri%2==0 else LT
+        _r(s,Inches(.4),ry,Inches(12.5),Inches(.49),bg)
+        if ri==0: _r(s,Inches(.4),ry,Inches(.06),Inches(.49),OR)
+        cells=[
+            (str(row.get('ASIN',''))[:12],1.5,DK,ri==0),
+            (str(row.get('Vendor Prefix','')),.85,VCLRS.get(str(row.get('Vendor Prefix','')),GY),True),
+            (str(row.get('Brand',''))[:18],2.0,DK,ri==0),
+            (str(row.get('Analyst','')), .9,GY,False),
+            (str(row.get('Recommended',''))[:12],.85,OR if ri==0 else GY,False),
+            (str(int(row.get('Last month sold',0))),.85,GR,True),
+            (f"${row.get('Net price',0):.2f}",.7,DK,False),
+            (f"${row.get('BB Price',0):.2f}",.7,DK,False),
+            (f"{row.get('margin_pct',0):.1f}%",.8,OR,True),
+            (f"#{int(row.get('Rank',0)):,}",.95,DK,False),
+            (str(row.get('Total Product Score','')),.65,DK,False),
+            (str(row.get('BuyBoxSellerName',''))[:14],1.3,GY,False),
+        ]
+        tx=Inches(.4)
+        for val,cw3,clr,bld in cells:
+            _t(s,val,tx+Inches(.05),ry+Inches(.12),Inches(cw3-.08),Inches(.26),sz=8.5,bold=bld,color=clr,align=PP_ALIGN.CENTER)
+            tx+=Inches(cw3)
+    s.notes_slide.notes_text_frame.text="Focus on rows highlighted in orange (rank 1). Green = high units/month. Top 5 rows should be actioned for immediate PO this week."
+
+# ─── SLIDE 5: ANALYST SCORECARDS ─────────────────────────────────────────────
+def s_analysts(prs,d):
+    df=d['df']
+    s=prs.slides.add_slide(prs.slide_layouts[6]); _bg(s,LT)
+    _hdr(s,"Analyst Performance Scorecards","Individual quality, throughput, and scoring",d['week_label']); _ftr(s)
+
+    astats=df.groupby('Analyst').agg(
+        Total=('ASIN','count'),Approved=('is_yes','sum'),
+        Rejected=('is_yes',lambda x:(~x).sum()),
+        Rate=('is_yes',lambda x:round(x.mean()*100,1)),
+        AvgM=('margin_pct','mean'),Units=('Last month sold','sum'),
+        Rank=('Rank','mean'),Net=('Net price','mean'),BB=('BB Price','mean'),
+        Dem=('Total Demand Score','mean'),Comp=('Total Competition Score','mean'),
+        MarSc=('Total Margin Score','mean')).reset_index().round(1)
+
+    n=len(astats); cw2=Inches(12.3/n); sy=Inches(1.2); gap2=Inches(.18)
+    for i,(_,row) in enumerate(astats.iterrows()):
+        rate=row['Rate']; rc2=GR if rate>=80 else (AM if rate>=50 else RD)
+        cx=Inches(.4)+i*(cw2+gap2)
+        _r(s,cx,sy,cw2,Inches(5.7),WH)
+        _r(s,cx,sy,cw2,Inches(.07),rc2)
+        _t(s,row['Analyst'],cx+Inches(.18),sy+Inches(.12),cw2-Inches(.25),Inches(.38),sz=16,bold=True,color=DK)
+        _t(s,f"{rate}% APPROVAL",cx+Inches(.18),sy+Inches(.54),cw2-Inches(.25),Inches(.28),sz=10,bold=True,color=rc2)
+        stats2=[("Total Audited",str(int(row['Total']))),
+                ("Approved",str(int(row['Approved']))),
+                ("Rejected",str(int(row['Rejected']))),
+                ("Avg Margin %",f"{row['AvgM']:.1f}%"),
+                ("Avg BSR Rank",f"#{row['Rank']:,.0f}"),
+                ("Units/Month",str(int(row['Units']))),
+                ("Avg Net $",f"${row['Net']:.2f}"),
+                ("Avg BB $",f"${row['BB']:.2f}"),
+                ("Demand Score",str(row['Dem'])),
+                ("Comp. Score",str(row['Comp'])),
+                ("Margin Score",str(row['MarSc']))]
+        sy2=sy+Inches(.95)
+        for lbl2,val2 in stats2:
+            _r(s,cx+Inches(.15),sy2,cw2-Inches(.25),Inches(.4),LT)
+            _t(s,lbl2,cx+Inches(.2),sy2+Inches(.02),cw2-Inches(.35),Inches(.17),sz=7,color=GY)
+            _t(s,val2,cx+Inches(.2),sy2+Inches(.2),cw2-Inches(.35),Inches(.18),sz=10,bold=True,
+               color=GR if lbl2=="Approved" else (RD if lbl2=="Rejected" else (OR if "Margin" in lbl2 else DK)))
+            sy2+=Inches(.44)
+    s.notes_slide.notes_text_frame.text="Green = 80%+ rate. Amber = 50-79%. Red = below 50%. Highlight top analyst and discuss workload balance. 100% rate analysts had clean vendor batches."
+
+# ─── SLIDE 6: BRAND ANALYSIS ─────────────────────────────────────────────────
+def s_brands(prs,d):
+    df=d['df']
+    s=prs.slides.add_slide(prs.slide_layouts[6]); _bg(s,LT)
+    _hdr(s,"Brand Intelligence","Approved SKU count, margin, and demand by brand",d['week_label']); _ftr(s)
+
+    bs=df[df['is_yes']].groupby('Brand').agg(
+        Approved=('ASIN','count'),Units=('Last month sold','sum'),
+        AvgM=('margin_pct','mean'),Rank=('Rank','mean'),
+    ).reset_index().sort_values('Approved',ascending=False).head(10).round(1)
+    mx=bs['Approved'].max()
+
+    tw=Inches(7.5); lw=Inches(2.0); bh=Inches(.42); gap3=Inches(.1)
+    sx=Inches(.4); sy=Inches(1.2)
+    _t(s,"BRAND",sx,sy-Inches(.32),lw,Inches(.25),sz=8,bold=True,color=GY)
+    _t(s,"APPROVED SKUs  →",sx+lw+Inches(.1),sy-Inches(.32),tw,Inches(.25),sz=8,bold=True,color=GY)
+
+    for i,(_,row) in enumerate(bs.iterrows()):
+        by=sy+i*(bh+gap3)
+        pct=row['Approved']/mx if mx else 0
+        fw2=max(Inches(.15),tw*pct)
+        clr=OR if i==0 else (OR2 if i<3 else RGBColor(0xF9,0xC0,0x8E))
+        _t(s,row['Brand'],sx,by+Inches(.09),lw,bh,sz=9,bold=(i==0),color=DK,align=PP_ALIGN.RIGHT)
+        _r(s,sx+lw+Inches(.15),by,tw,bh,LG)
+        _r(s,sx+lw+Inches(.15),by,fw2,bh,clr)
+        _t(s,str(int(row['Approved'])),sx+lw+Inches(.15)+fw2+Inches(.08),by+Inches(.09),Inches(.5),bh,sz=10,bold=(i==0),color=DK)
+
+    # Right metrics panel
+    tx2=Inches(10.1); ty2=Inches(1.2)
+    _t(s,"BRAND METRICS",tx2,ty2-Inches(.35),Inches(2.8),Inches(.28),sz=8,bold=True,color=OR)
+    _r(s,tx2,ty2,Inches(2.8),Inches(.38),NV)
+    for hdr2,cx_off,w2 in [("Brand",0,1.05),("Units",1.1,.85),("Margin",1.98,.82)]:
+        _t(s,hdr2,tx2+Inches(cx_off)+Inches(.05),ty2+Inches(.08),Inches(w2),Inches(.22),
+           sz=8,bold=True,color=WH,align=PP_ALIGN.CENTER)
+    for ri2,(_,row) in enumerate(bs.iterrows()):
+        ry2=ty2+Inches(.38)+ri2*Inches(.47)
+        bg2=WH if ri2%2==0 else LT
+        _r(s,tx2,ry2,Inches(2.8),Inches(.45),bg2)
+        for val2,cx_off2,w2,clr2,bld2 in [
+            (str(row['Brand'])[:12],0,1.05,DK,ri2==0),
+            (str(int(row['Units'])),1.1,.85,GR,False),
+            (f"{row['AvgM']:.0f}%",1.98,.82,OR,True)]:
+            _t(s,val2,tx2+Inches(cx_off2)+Inches(.05),ry2+Inches(.12),Inches(w2),Inches(.22),
+               sz=9,bold=bld2,color=clr2,align=PP_ALIGN.CENTER)
+    s.notes_slide.notes_text_frame.text="Top 3 brands should drive purchase orders this week. Bar length = relative SKU share. Margin % and units together determine sourcing priority."
+
+# ─── SLIDE 7: REJECTION ANALYSIS ─────────────────────────────────────────────
+def s_rejected(prs,d):
+    df=d['df']
+    s=prs.slides.add_slide(prs.slide_layouts[6]); _bg(s,LT)
+    _hdr(s,"Rejection Analysis — Root Cause","All rejected ASINs with margin breakdown and next actions",d['week_label']); _ftr(s)
+
+    rej=df[~df['is_yes']]
+    neg=int(rej['Remarks '].str.contains('Negative',na=False).sum()) if 'Remarks ' in rej.columns else 0
+    low=int(rej['Remarks '].str.contains('Low',na=False).sum()) if 'Remarks ' in rej.columns else 0
+    oth=len(rej)-neg-low
+
+    for i,(lbl,val,clr) in enumerate([("NEGATIVE MARGIN",str(neg),RD),("LOW MARGIN",str(low),AM),("OTHER",str(oth),GY)]):
+        _kpi(s,Inches(.4)+i*Inches(3.8),Inches(1.2),Inches(3.5),Inches(1.4),lbl,val,"PROH vendor",clr,clr)
+
+    _r(s,Inches(.4),Inches(2.8),Inches(12.5),Inches(.4),NV)
+    hdrs2=[("ASIN",1.5),("Vendor",.85),("Brand",1.6),("Analyst",.9),("Net $",.85),
+           ("BB $",.85),("Breakeven",.95),("Diff SP",.85),("Score",.7),("Reason",2.4)]
+    cx=Inches(.4)
+    for hdr2,cw3 in hdrs2:
+        _t(s,hdr2,cx+Inches(.05),Inches(2.85),Inches(cw3-.08),Inches(.28),sz=7,bold=True,color=WH,align=PP_ALIGN.CENTER)
+        cx+=Inches(cw3)
 
     for ri,(_,row) in enumerate(rej.iterrows()):
-        ry3 = Inches(3.25)+ri*Inches(.48)
-        bg3 = RGBColor(0xFF,0xF1,0xF2) if ri%2==0 else WHITE
-        _rect(s, Inches(.4), ry3, Inches(12.5), Inches(.46), bg3)
-        cells3 = [
-            (str(row.get('ASIN',''))[:14],           1.6,  DARK, False),
-            (str(row.get('Brand',''))[:18],          1.7,  DARK, True),
-            (str(row.get('Analyst','')),              .9,  GRAY, False),
-            (f"${row.get('Net price',0):.2f}",        .95,  DARK, False),
-            (f"${row.get('BB Price',0):.2f}",         .95,  DARK, False),
-            (f"${row.get('Breakeven',0):.2f}",        .95,  RED,  True),
-            (f"${row.get('Difference from SP',0):.2f}",.95, RED, True),
-            (str(row.get('Remarks ',''))[:30],        2.4,  RED,  False),
-            (str(row.get('Total Product Score','')),  .75,  GRAY, False),
+        ry=Inches(3.22)+ri*Inches(.48)
+        bg=RGBColor(0xFF,0xF1,0xF2) if ri%2==0 else WH
+        _r(s,Inches(.4),ry,Inches(12.5),Inches(.46),bg)
+        cells=[
+            (str(row.get('ASIN',''))[:14],1.5,DK,False),
+            (str(row.get('Vendor Prefix','')), .85,VCLRS.get(str(row.get('Vendor Prefix','')),GY),True),
+            (str(row.get('Brand',''))[:16],1.6,DK,True),
+            (str(row.get('Analyst','')), .9,GY,False),
+            (f"${row.get('Net price',0):.2f}",.85,DK,False),
+            (f"${row.get('BB Price',0):.2f}",.85,DK,False),
+            (f"${row.get('Breakeven',0):.2f}",.95,RD,True),
+            (f"${row.get('Difference from SP',0):.2f}",.85,RD,True),
+            (str(row.get('Total Product Score','')),.7,GY,False),
+            (str(row.get('Remarks ',''))[:28],2.4,RD,False),
         ]
-        tx3 = Inches(.4)
-        for val3,cw33,col3,bld3 in cells3:
-            _txt(s, val3, tx3+Inches(.06), ry3+Inches(.11), Inches(cw33-.1), Inches(.26),
-                 size=8.5, bold=bld3, color=col3, align=PP_ALIGN.CENTER)
-            tx3 += Inches(cw33)
+        tx=Inches(.4)
+        for val,cw3,clr,bld in cells:
+            _t(s,val,tx+Inches(.05),ry+Inches(.11),Inches(cw3-.08),Inches(.26),sz=8,bold=bld,color=clr,align=PP_ALIGN.CENTER)
+            tx+=Inches(cw3)
+    s.notes_slide.notes_text_frame.text="All 8 rejections are PROH vendor. 4 negative margin, 4 low margin. Action: contact vendor for price concession before next PO."
 
-    s.notes_slide.notes_text_frame.text = (
-        "All 8 rejected ASINs are from PROHITTER brand. "
-        "4 have negative margins — BB Price doesn't cover landed cost. "
-        "4 have low margins — technically profitable but below our threshold. "
-        "Action: contact PROHITTER vendor for price concession of 15-20% minimum."
-    )
+# ─── SLIDE 8: SOURCING RECOMMENDATIONS ───────────────────────────────────────
+def s_sourcing(prs,d):
+    df=d['df']
+    s=prs.slides.add_slide(prs.slide_layouts[6]); _bg(s,LT)
+    _hdr(s,"Sourcing Recommendations — Action Plan","Priority-ranked actions for sourcing and vendor management teams",d['week_label']); _ftr(s)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# SLIDE 7 — SOURCING RECOMMENDATIONS
-# ═══════════════════════════════════════════════════════════════════════════════
-def slide_sourcing(prs, d):
-    df   = d['df']
-    s    = prs.slides.add_slide(prs.slide_layouts[6]); _set_bg(s, LIGHT)
-    _slide_header(s, "Sourcing Recommendations — Action Plan",
-                  "Priority-ranked actions for the sourcing and vendor management teams", d['week_label'])
-    _footer(s)
+    yl=df[df['is_yes']]
+    top5=yl.sort_values('Last month sold',ascending=False).head(5)
+    top_brand=yl.groupby('Brand')['ASIN'].count().idxmax() if not yl.empty else "—"
+    top_brand_m=round(yl.groupby('Brand')['margin_pct'].mean().get(top_brand,0),1) if not yl.empty else 0
+    top_brand_n=int(yl.groupby('Brand')['ASIN'].count().max()) if not yl.empty else 0
 
-    yes_df   = df[df['is_yes']]
-    top_asin = yes_df.sort_values('Last month sold',ascending=False).head(5)
-    top_brand= yes_df.groupby('Brand')['ASIN'].count().idxmax()
-    top_brand_margin = round(yes_df.groupby('Brand')['margin_pct'].mean().get(top_brand,0),1)
-
-    # Priority 1
-    _rect(s, Inches(.4), Inches(1.2), Inches(12.5), Inches(1.3), WHITE)
-    _rect(s, Inches(.4), Inches(1.2), Inches(.12), Inches(1.3), ORANGE)
-    _txt(s, "PRIORITY 1 — IMMEDIATE PO ACTION", Inches(.62), Inches(1.28),
-         Inches(9), Inches(.28), size=9, bold=True, color=ORANGE)
-    asin_list = "  ·  ".join([f"{r['ASIN']} ({r['Brand']}, {int(r['Last month sold'])} units/mo)" for _,r in top_asin.iterrows()])
-    _txt(s, f"Action these ASINs immediately — highest demand velocity this week:\n{asin_list}",
-         Inches(.62), Inches(1.6), Inches(11.7), Inches(.75), size=10, color=DARK)
-
-    # Priority 2
-    _rect(s, Inches(.4), Inches(2.65), Inches(12.5), Inches(1.1), WHITE)
-    _rect(s, Inches(.4), Inches(2.65), Inches(.12), Inches(1.1), BLUE)
-    _txt(s, "PRIORITY 2 — VENDOR FOCUS", Inches(.62), Inches(2.73),
-         Inches(9), Inches(.28), size=9, bold=True, color=BLUE)
-    _txt(s, f"{top_brand} is this week's top vendor with {int(yes_df[yes_df['Brand']==top_brand]['ASIN'].count())} approved SKUs and an average margin of {top_brand_margin}%. Expand PO allocation and negotiate volume pricing for next cycle.",
-         Inches(.62), Inches(3.05), Inches(11.7), Inches(.55), size=10, color=DARK)
-
-    # Priority 3
-    _rect(s, Inches(.4), Inches(3.9), Inches(12.5), Inches(1.1), WHITE)
-    _rect(s, Inches(.4), Inches(3.9), Inches(.12), Inches(1.1), AMBER)
-    _txt(s, "PRIORITY 3 — VENDOR RENEGOTIATION", Inches(.62), Inches(3.98),
-         Inches(9), Inches(.28), size=9, bold=True, color=AMBER)
-    _txt(s, "8 PROHITTER ASINs rejected due to negative/low margin. Request cost reduction of 15-20% from vendor. If vendor does not comply, reduce PO allocation for next quarter.",
-         Inches(.62), Inches(4.3), Inches(11.7), Inches(.55), size=10, color=DARK)
-
-    # Priority 4
-    _rect(s, Inches(.4), Inches(5.15), Inches(12.5), Inches(1.0), WHITE)
-    _rect(s, Inches(.4), Inches(5.15), Inches(.12), Inches(1.0), GREEN)
-    _txt(s, "PRIORITY 4 — GROWTH OPPORTUNITY", Inches(.62), Inches(5.23),
-         Inches(9), Inches(.28), size=9, bold=True, color=GREEN)
-    _txt(s, "Nintendo (7 SKUs, avg 100 units/month) and Ubisoft (4 SKUs) show strong FBA competition gaps (<5 sellers). Increase catalogue coverage and consider priority restocking.",
-         Inches(.62), Inches(5.55), Inches(11.7), Inches(.55), size=10, color=DARK)
-
-    s.notes_slide.notes_text_frame.text = (
-        "Walk through each priority in order with the team. "
-        "Assign owners before leaving the meeting. "
-        "P1 = Sourcing team. P2 = Vendor manager. P3 = Finance + Procurement. P4 = Catalogue team."
-    )
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# SLIDE 8 — NEXT STEPS
-# ═══════════════════════════════════════════════════════════════════════════════
-def slide_closing(prs, d):
-    s = prs.slides.add_slide(prs.slide_layouts[6]); _set_bg(s, NAVY)
-    _rect(s, Emu(0), Emu(0), Inches(4.8), H, ORANGE)
-    _txt(s, "NEXT\nSTEPS", Inches(.55), Inches(1.8), Inches(3.7), Inches(2.8),
-         size=54, bold=True, color=WHITE)
-    _txt(s, d['week_label'], Inches(.55), Inches(4.8), Inches(4.0), Inches(.4),
-         size=11, color=WHITE)
-    _txt(s, "virventures.com", Inches(.55), H-Inches(.9), Inches(4.0), Inches(.35),
-         size=10, color=RGBColor(0xF9,0xC0,0x8E))
-
-    steps = [
-        ("01", "Sourcing Team",      "Issue POs for top 5 ASINs by demand velocity this week."),
-        ("02", "Vendor Management",  f"Expand {d['df'][d['df']['is_yes']].groupby('Brand')['ASIN'].count().idxmax()} allocation — negotiate volume pricing for next cycle."),
-        ("03", "Finance",            "Review PROHITTER cost structure — target 15-20% price reduction."),
-        ("04", "Analyst Team",       "Maintain weekly cadence. Target 75%+ approval rate across all analysts."),
-        ("05", "Catalogue Team",     "Expand Nintendo and Ubisoft SKU coverage — low FBA competition opportunity."),
-        ("06", "Management",         "Review next week's mastersheet against this week's approval benchmarks."),
+    prios=[
+        (OR,"P1 — IMMEDIATE PO ACTION",
+         "Action these ASINs this week (highest demand velocity):\n"+
+         "  ·  ".join([f"{r['ASIN']} ({r['Brand']}, {int(r['Last month sold'])} units/mo)" for _,r in top5.iterrows()])),
+        (BL,f"P2 — VENDOR FOCUS: {top_brand}",
+         f"{top_brand_n} approved SKUs · Avg margin {top_brand_m}% · Expand PO allocation and negotiate volume pricing for next cycle."),
+        (AM,"P3 — VENDOR RENEGOTIATION: PROH",
+         f"8 ASINs rejected (negative/low margin). Request 15-20% cost reduction. If unresolved, reduce PROH PO allocation next quarter."),
+        (GR,"P4 — GROWTH OPPORTUNITY",
+         "Nintendo (7 SKUs) and Ubisoft (4 SKUs) show strong FBA competition gaps (<5 sellers). Increase catalogue coverage and prioritise restocking."),
     ]
-    sy = Inches(1.2)
-    for num, owner, action in steps:
-        _rect(s, Inches(5.3), sy, Inches(7.6), Inches(.82), NAVY2)
-        _txt(s, num, Inches(5.4), sy+Inches(.12), Inches(.5), Inches(.58),
-             size=18, bold=True, color=ORANGE)
-        _txt(s, owner.upper(), Inches(5.98), sy+Inches(.08), Inches(6.5), Inches(.28),
-             size=8, bold=True, color=ORANGE)
-        _txt(s, action, Inches(5.98), sy+Inches(.32), Inches(6.5), Inches(.44),
-             size=10, color=WHITE)
-        sy += Inches(.95)
+    py=Inches(1.2)
+    for clr,title,body in prios:
+        _r(s,Inches(.4),py,Inches(12.5),Inches(1.2),WH)
+        _r(s,Inches(.4),py,Inches(.1),Inches(1.2),clr)
+        _t(s,title,Inches(.62),py+Inches(.1),Inches(11.6),Inches(.28),sz=9,bold=True,color=clr)
+        _t(s,body,Inches(.62),py+Inches(.42),Inches(11.6),Inches(.7),sz=10,color=DK)
+        py+=Inches(1.35)
+    s.notes_slide.notes_text_frame.text="Assign owners before leaving this slide. P1=Sourcing. P2=Vendor Mgr. P3=Finance+Procurement. P4=Catalogue."
 
-    s.notes_slide.notes_text_frame.text = (
-        "Closing slide. Assign each action item to a specific owner before the meeting ends. "
-        "Set a follow-up date for vendor renegotiation outcomes. "
-        "Next week's report should show improvement in PROHITTER margin position."
-    )
+# ─── SLIDE 9: NEXT STEPS ─────────────────────────────────────────────────────
+def s_close(prs,d):
+    df=d['df']
+    s=prs.slides.add_slide(prs.slide_layouts[6]); _bg(s,NV)
+    _r(s,Emu(0),Emu(0),Inches(4.6),H,OR)
+    _t(s,"NEXT\nSTEPS",Inches(.55),Inches(1.8),Inches(3.7),Inches(2.8),sz=52,bold=True,color=WH)
+    _t(s,d['week_label'],Inches(.55),Inches(4.8),Inches(4.0),Inches(.4),sz=10,color=WH)
+    _t(s,"virventures.com",Inches(.55),H-Inches(.9),Inches(4.0),Inches(.35),sz=10,color=RGBColor(0xF9,0xC0,0x8E))
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# MAIN ENTRY
-# ═══════════════════════════════════════════════════════════════════════════════
-def generate_pptx(data: dict) -> bytes:
-    prs = Presentation()
-    prs.slide_width  = W
-    prs.slide_height = H
+    yl=df[df['is_yes']]
+    top_brand=yl.groupby('Brand')['ASIN'].count().idxmax() if not yl.empty else "—"
+    steps=[("01","Sourcing Team","Issue POs for top 5 demand ASINs immediately."),
+           ("02","Vendor Management",f"Expand {top_brand} allocation — negotiate volume pricing."),
+           ("03","Finance & Procurement","PROH vendor: target 15-20% price reduction. No orders until resolved."),
+           ("04","Analyst Team","Maintain weekly cadence. Target 75%+ approval rate all analysts."),
+           ("05","Catalogue Team","Expand Nintendo + Ubisoft SKU coverage — low FBA competition gap."),
+           ("06","Management","Review next week's mastersheet against this week's benchmarks.")]
+    sy2=Inches(1.2)
+    for num,owner,action in steps:
+        _r(s,Inches(5.1),sy2,Inches(7.8),Inches(.82),NV2)
+        _t(s,num,Inches(5.2),sy2+Inches(.12),Inches(.5),Inches(.58),sz=18,bold=True,color=OR)
+        _t(s,owner.upper(),Inches(5.82),sy2+Inches(.08),Inches(6.8),Inches(.28),sz=8,bold=True,color=OR)
+        _t(s,action,Inches(5.82),sy2+Inches(.32),Inches(6.8),Inches(.44),sz=10,color=WH)
+        sy2+=Inches(.95)
+    s.notes_slide.notes_text_frame.text="Assign each action item to a named owner. Set follow-up date for PROH vendor outcome. Close with next week's timeline."
 
-    slide_cover(prs, data)
-    slide_exec_summary(prs, data)
-    slide_top_asins(prs, data)
-    slide_analyst(prs, data)
-    slide_brands(prs, data)
-    slide_rejected(prs, data)
-    slide_sourcing(prs, data)
-    slide_closing(prs, data)
-
-    buf = io.BytesIO()
-    prs.save(buf)
+# ─── MAIN ────────────────────────────────────────────────────────────────────
+def generate_pptx(data:dict)->bytes:
+    prs=Presentation()
+    prs.slide_width=W; prs.slide_height=H
+    s_cover(prs,data)
+    s_exec(prs,data)
+    s_vendor(prs,data)
+    s_asins(prs,data)
+    s_analysts(prs,data)
+    s_brands(prs,data)
+    s_rejected(prs,data)
+    s_sourcing(prs,data)
+    s_close(prs,data)
+    buf=io.BytesIO(); prs.save(buf)
     return buf.getvalue()
+PYEOF
+echo "export_pptx.py written"
