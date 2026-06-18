@@ -696,5 +696,4 @@ with t6:
     csv_b = dff.to_csv(index=False).encode()
     st.download_button("📄 Download Raw CSV", data=csv_b,
                        file_name=f"VirVentures_Raw_{report_date}.csv", mime="text/csv")
-PYEOF
-echo "app.py written"
+
