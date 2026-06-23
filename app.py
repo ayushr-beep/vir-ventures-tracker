@@ -452,8 +452,11 @@ with t3:
   <div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;'>
     <div style='background:{LT};padding:6px 8px;border-radius:6px;'><span style='color:#9CA3AF;display:block;font-size:10px;'>Units/Month</span><b style='color:{GR};'>{int(row["Last month sold"])}</b></div>
     <div style='background:{LT};padding:6px 8px;border-radius:6px;'><span style='color:#9CA3AF;display:block;font-size:10px;'>Margin</span><b style='color:{OR};'>{row["margin_pct"]:.1f}%</b></div>
-    <div style='background:{LT};padding:6px 8px;border-radius:6px;'><span style='color:#9CA3AF;display:block;font-size:10px;'>BSR Rank</span><b>#{int(row["Rank"]):,}</b></div>
-    <div style='background:{LT};padding:6px 8px;border-radius:6px;'><span style='color:#9CA3AF;display:block;font-size:10px;'>BB Price</span><b>${row["BB Price"]:.2f}</b></div>
+    <div style='background:{LT};padding:6px 8px;border-radius:6px;'>
+    <span style='color:#9CA3AF;display:block;font-size:10px;'>BSR Rank</span>
+    <b>{f"#{int(row['Rank']):,}" if pd.notna(row['Rank']) else "N/A"}</b>
+</div>
+<div style='background:{LT};padding:6px 8px;border-radius:6px;'><span style='color:#9CA3AF;display:block;font-size:10px;'>BB Price</span><b>${row["BB Price"]:.2f}</b></div>
   </div>
   <div style='margin-top:8px;font-size:10px;color:#374151;background:{LT};padding:5px 8px;border-radius:6px;'>{str(row.get("Remarks ","—"))[:55]}</div>
 </div>
