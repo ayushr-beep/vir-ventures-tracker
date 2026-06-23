@@ -223,8 +223,9 @@ def sh_vendor(wb,d):
     d1=Reference(ws,min_col=4,min_row=chart_s,max_row=chart_e)
     d2=Reference(ws,min_col=5,min_row=chart_s,max_row=chart_e)
     ct=Reference(ws,min_col=1,min_row=chart_s,max_row=chart_e)
-    cht.add_data(d1); cht.add_data(d2); cht.set_categories(ct)
-    cht.series[0].title.v="Approved"; cht.series[1].title.v="Rejected"
+    cht.add_data(d1,titles_from_data=False)
+    cht.add_data(d2,titles_from_data=False)
+    cht.set_categories(ct)
     cht.series[0].graphicalProperties.solidFill=GR
     cht.series[1].graphicalProperties.solidFill=RD
     ws.add_chart(cht,"A"+str(r))
@@ -496,6 +497,3 @@ def generate_excel(data:dict)->bytes:
     sh_rejected(wb,data)
     buf=io.BytesIO(); wb.save(buf)
     return buf.getvalue()
-PYEOF
-echo "export_excel.py written"
-Output
