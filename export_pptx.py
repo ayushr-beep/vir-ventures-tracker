@@ -424,5 +424,3 @@ def generate_pptx(data:dict)->bytes:
     s_close(prs,data)
     buf=io.BytesIO(); prs.save(buf)
     return buf.getvalue()
-PYEOF
-echo "export_pptx.py written"
